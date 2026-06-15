@@ -8,6 +8,7 @@ on:
       client_firm: { description: client law firm being audited, required: true }
       first_name: { description: contact first name, required: false }
       site_url: { description: client firm website to scroll, required: false }
+      agency_url: { description: agency website (scene 1), required: false }
       leak_note: { description: what the after-hours call exposed, required: false }
       page_url: { description: audit page url, required: false }
       skip_callback: { description: "1 = don't notify n8n (for testing)", required: false, default: "0" }
@@ -47,6 +48,7 @@ jobs:
           CLIENT_FIRM: ${{ github.event.client_payload.client_firm || github.event.inputs.client_firm }}
           FIRST_NAME: ${{ github.event.client_payload.first_name || github.event.inputs.first_name }}
           SITE_URL: ${{ github.event.client_payload.site_url || github.event.inputs.site_url }}
+          AGENCY_URL: ${{ github.event.client_payload.agency_url || github.event.inputs.agency_url }}
           LEAK_NOTE: ${{ github.event.client_payload.leak_note || github.event.inputs.leak_note }}
           PAGE_URL: ${{ github.event.client_payload.page_url || github.event.inputs.page_url }}
           SKIP_CALLBACK: ${{ github.event.client_payload.skip_callback || github.event.inputs.skip_callback }}
@@ -55,6 +57,8 @@ jobs:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: intakeline-media
           N8N_INGEST_URL: ${{ vars.N8N_INGEST_URL }}
+          ELEVEN_API_KEY: ${{ secrets.ELEVEN_API_KEY }}
+          ELEVEN_VOICE_ID: ${{ secrets.ELEVEN_VOICE_ID }}
         run: node render.mjs
 
       - name: Upload artifact (debug)
