@@ -1,0 +1,13 @@
+{
+  "name": "intakeline-render",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Auto-renders personalized 9:16 audit videos (scroll of the prospect's client-firm site + Hormozi captions of the hook) and drops them into the IntakeLine Drive pipeline. Runs on GitHub Actions; never on the n8n box.",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

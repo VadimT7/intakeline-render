@@ -1,0 +1,67 @@
+name: render-audit-video
+
+on:
+  workflow_dispatch:
+    inputs:
+      slug: { description: compact slug, required: true }
+      agency: { description: agency name (Drive filename), required: true }
+      client_firm: { description: client law firm being audited, required: true }
+      first_name: { description: contact first name, required: false }
+      site_url: { description: client firm website to scroll, required: false }
+      leak_note: { description: what the after-hours call exposed, required: false }
+      page_url: { description: audit page url, required: false }
+      skip_callback: { description: "1 = don't notify n8n (for testing)", required: false, default: "0" }
+  repository_dispatch:
+    types: [render-audit-video]
+
+concurrency:
+  group: render-${{ github.event.client_payload.slug || github.event.inputs.slug }}
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install ffmpeg (with libass)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+          ffmpeg -filters 2>/dev/null | grep -q ' ass ' && echo "libass OK" || (echo "libass MISSING" && exit 1)
+
+      - name: Install deps + Chromium
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Render
+        env:
+          SLUG: ${{ github.event.client_payload.slug || github.event.inputs.slug }}
+          AGENCY: ${{ github.event.client_payload.agency || github.event.inputs.agency }}
+          CLIENT_FIRM: ${{ github.event.client_payload.client_firm || github.event.inputs.client_firm }}
+          FIRST_NAME: ${{ github.event.client_payload.first_name || github.event.inputs.first_name }}
+          SITE_URL: ${{ github.event.client_payload.site_url || github.event.inputs.site_url }}
+          LEAK_NOTE: ${{ github.event.client_payload.leak_note || github.event.inputs.leak_note }}
+          PAGE_URL: ${{ github.event.client_payload.page_url || github.event.inputs.page_url }}
+          SKIP_CALLBACK: ${{ github.event.client_payload.skip_callback || github.event.inputs.skip_callback }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: intakeline-media
+          N8N_INGEST_URL: ${{ vars.N8N_INGEST_URL }}
+        run: node render.mjs
+
+      - name: Upload artifact (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-video-${{ github.event.client_payload.slug || github.event.inputs.slug }}
+          path: out.mp4
+          if-no-files-found: ignore
+          retention-days: 7
