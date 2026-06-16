@@ -66,7 +66,7 @@ function narrate() {
   const body = JSON.stringify({
     text: SCRIPT,
     model_id: "eleven_multilingual_v2",
-    voice_settings: { stability: 0.15, similarity_boost: 0.90, style: 0.62, use_speaker_boost: true },
+    voice_settings: { stability: 0.22, similarity_boost: 0.90, style: 0.45, use_speaker_boost: true },
   });
   writeFileSync("el_body.json", body);
   const raw = sh("curl", [
