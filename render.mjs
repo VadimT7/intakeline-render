@@ -40,7 +40,7 @@ const SKIP_CALLBACK = env("SKIP_CALLBACK") === "1";
 const ACCENT = "&H000EE8F9&";   // IntakeLine brand gold (ASS BGR), used to highlight key words
 const WHITE = "&H00FFFFFF&";
 
-const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "inherit"] });
+const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "inherit"], maxBuffer: 64 * 1024 * 1024 });
 const probeDims = (f) => {
   const out = sh("ffprobe", ["-v","error","-select_streams","v:0","-show_entries","stream=width,height","-of","csv=p=0", f]).toString().trim();
   const [w, h] = out.split(",").map(Number);
