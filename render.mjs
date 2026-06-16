@@ -110,7 +110,7 @@ function buildAss(al, dur, offerStart) {
     const offer = wd.s >= offerStart - 0.05;
     p.push(wd); len += wd.w.length + 1;
     const endsSentence = /[.!?]$/.test(wd.w);
-    const limit = offer ? 26 : 22;
+    const limit = offer ? 16 : 20;
     if (len >= limit || endsSentence) { phrases.push(p); p = []; len = 0; }
   }
   if (p.length) phrases.push(p);
@@ -125,11 +125,13 @@ function buildAss(al, dur, offerStart) {
     let text = esc(ph.map((x) => x.w).join(" ")).replace(/\bA I\b/g, "AI");
     if (isOffer) {
       for (const re of offerKeys) text = text.replace(re, (m) => `{\\c${ACCENT}}${m}{\\c${WHITE}}`);
-      // kinetic card: fade + gentle scale-in pop
-      return `Dialogue: 0,${tc(s)},${tc(e)},Offer,,0,0,0,,{\\fad(110,110)\\fscx86\\fscy86\\t(0,170,\\fscx100\\fscy100)}${text}`;
+      // kinetic typography: fast fade + bouncy scale pop (overshoot then settle), slight rise
+      const anim = `{\\fad(60,70)\\fscx56\\fscy56\\t(0,120,\\fscx114\\fscy114)\\t(120,210,\\fscx100\\fscy100)\\move(540,1020,540,960,0,200)}`;
+      return `Dialogue: 0,${tc(s)},${tc(e)},Offer,,0,0,0,,${anim}${text}`;
     }
     if (firmRe.test(text)) text = text.replace(firmRe, (m) => `{\\c${ACCENT}}${m}{\\c${WHITE}}`);
-    return `Dialogue: 0,${tc(s)},${tc(e)},Hook,,0,0,0,,${text}`;
+    const anim = `{\\fad(50,60)\\fscx82\\fscy82\\t(0,110,\\fscx100\\fscy100)}`;
+    return `Dialogue: 0,${tc(s)},${tc(e)},Hook,,0,0,0,,${anim}${text}`;
   }).join("\n");
 
   const header = `Dialogue: 0,${tc(0)},${tc(dur)},Header,,0,0,0,,PRIVATE INTAKE AUDIT  -  ${esc(AGENCY).toUpperCase()}`;
@@ -181,8 +183,25 @@ async function capture(url, file) {
   } catch { await browser.close(); return false; }
 }
 function brandCard(file, w = 1080, h = 1920) {
-  // dark brand background for the offer section (kinetic text carries the motion)
+  // flat dark fallback
   sh("ffmpeg", ["-y", "-f", "lavfi", "-i", `color=c=0x0A0F1E:s=${w}x${h}`, "-frames:v", "1", file]);
+}
+// premium dark-navy gradient bg for the offer (gold glow up top, blue glow at the base); slow zoom adds drift
+async function brandBg(file) {
+  try {
+    const browser = await chromium.launch({ args: ["--no-sandbox"] });
+    const ctx = await browser.newContext({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
+    const page = await ctx.newPage();
+    await page.setContent(`<!doctype html><html><body style="margin:0;width:1080px;height:1920px;background:#070b16;overflow:hidden;position:relative;">
+      <div style="position:absolute;inset:0;background:radial-gradient(120% 78% at 50% 32%, #1b3460 0%, #0d1830 40%, #070b16 74%);"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(55% 26% at 50% 7%, rgba(249,232,14,0.12) 0%, rgba(249,232,14,0) 70%);"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(95% 45% at 50% 102%, rgba(14,60,120,0.45) 0%, rgba(7,11,22,0) 62%);"></div>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);"></div>
+    </body></html>`, { waitUntil: "load" });
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: file });
+    await browser.close();
+  } catch { brandCard(file); }
 }
 
 /* ---------- 5. per-scene pan/zoom filter ---------- */
@@ -209,7 +228,7 @@ const okAgency = await capture(AGENCY_URL, "s1.png");
 if (!okAgency) brandCard("s1.png");
 const okFirm = await capture(SITE_URL, "s2.png");
 if (!okFirm) brandCard("s2.png");
-brandCard("s3.png"); // offer scene = dark brand background
+await brandBg("s3.png"); // offer scene = premium gradient bg with slow drift
 console.log(`captures: agency=${okAgency} firm=${okFirm}`);
 
 const XF = 0.45;
