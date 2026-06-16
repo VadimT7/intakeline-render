@@ -1,10 +1,12 @@
-/* IntakeLine audit-video renderer (narrated, multi-scene).
+/* IntakeLine audit-video renderer (narrated, multi-scene, offer-focused).
  *
  * Story (your cloned ElevenLabs voice narrates the whole thing):
- *   Scene 1  agency site     "Hey {first}. You're {Agency}, you market for PI firms."
- *   Scene 2  client firm     "One of your clients is {firm}. I called after hours ... {leak}."
- *   Scene 3  intakeline.com  "Here's the same call, answered live by AI. Try it below."
+ *   Scene 1  agency / legal-software site   "Hey {first}. You're {Agency} ..."
+ *   Scene 2  client firm site               "I called {firm} after hours ... voicemail ..."
+ *   Scene 3  dark brand bg + kinetic cards   the OFFER (trial, ROAS, churn, commission, no white-label)
+ *   Scene 4  stays on brand bg               CTA to the page
  * Captions auto-sync to the narration via ElevenLabs character timestamps.
+ * Scenes 1-2 caption at the bottom (Hook style); the offer is centered kinetic cards (Offer style).
  *
  * Input (env): SLUG AGENCY CLIENT_FIRM FIRST_NAME SITE_URL AGENCY_URL LEAK_NOTE PAGE_URL
  *   ELEVEN_API_KEY ELEVEN_VOICE_ID  R2_*  N8N_INGEST_URL
@@ -13,7 +15,7 @@
 import { chromium } from "playwright";
 import { execFileSync } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, statSync } from "node:fs";
 
 const env = (k, d = "") => (process.env[k] ?? d).toString().trim();
 const SLUG = env("SLUG") || "test";
@@ -21,10 +23,9 @@ const AGENCY = env("AGENCY") || "your agency";
 const CLIENT_FIRM = env("CLIENT_FIRM") || "your client firm";
 const FIRST = env("FIRST_NAME") || "there";
 const SITE_URL = env("SITE_URL");           // client firm site
-const AGENCY_URL = env("AGENCY_URL");        // agency site (optional)
+const AGENCY_URL = env("AGENCY_URL");        // agency / legal-software site
 const LEAK_NOTE =
-  env("LEAK_NOTE") || "their answering service just told me to call back tomorrow";
-const OUR_URL = "https://intakeline.com";
+  env("LEAK_NOTE") || "no one picked up and there was no way to leave case details";
 const FPS = 30;
 
 const EL_KEY = env("ELEVEN_API_KEY");
@@ -36,6 +37,9 @@ const R2_BUCKET = env("R2_BUCKET", "intakeline-media");
 const N8N_INGEST_URL = env("N8N_INGEST_URL");
 const SKIP_CALLBACK = env("SKIP_CALLBACK") === "1";
 
+const ACCENT = "&H000EE8F9&";   // IntakeLine brand gold (ASS BGR), used to highlight key words
+const WHITE = "&H00FFFFFF&";
+
 const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "inherit"] });
 const probeDims = (f) => {
   const out = sh("ffprobe", ["-v","error","-select_streams","v:0","-show_entries","stream=width,height","-of","csv=p=0", f]).toString().trim();
@@ -45,19 +49,24 @@ const probeDims = (f) => {
 
 /* ---------- 1. script ---------- */
 const leak = LEAK_NOTE.replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
-const beat1 = `Hey ${FIRST}. You're ${AGENCY}, and you market for personal injury firms.`;
-const beat2 = `One of your clients is ${CLIENT_FIRM}. I called their office after hours, posing as an injured lead, and ${leak}. That lead just hung up and called the next firm on Google.`;
-const beat3 = `Here's that same call, answered live by an A I receptionist, twenty four seven. ${FIRST}, hear it for yourself on this page.`;
-const SCRIPT = `${beat1} ${beat2} ${beat3}`;
+// Scene 1 — agency / legal-software (generic so it fits both)
+const beat1 = `Hey ${FIRST}, give me thirty seconds. You're ${AGENCY}, and personal injury firms are your whole world. Your marketing is sharp.`;
+// Scene 2 — client firm site, then the after-hours leak
+const beat2 = `So I checked one of your clients, ${CLIENT_FIRM}. Strong site. Real cases coming in from your work. Then I called their office after hours, posing as an injured lead. It rang out, straight to voicemail. ${leak}. That client just hung up and called the next firm on Google. Your ad dollars brought them in, and the front desk lost them.`;
+// Scene 3 — the offer as kinetic cards
+const beat3 = `Here's the fix, and why it's good for you. I put a twenty four seven A I receptionist on their line. It answers every call, runs the full intake, and books the consult. So what's in it for you? Fourteen days free for your client. They risk nothing. More booked cases means a higher return on their marketing, so you look even better to them. Clients who win don't leave, so your churn drops. And you collect a commission every month, for every firm you refer. Just for the intro. No white label. No extra work. You don't build or manage anything. You refer, I handle all of it, and you get paid.`;
+// Scene 4 — CTA (stays on brand bg)
+const beat4 = `I already built the line that answers the way their intake should. It's on this page. Hear it live, and if it makes sense, grab fifteen minutes with me.`;
+const SCRIPT = `${beat1} ${beat2} ${beat3} ${beat4}`;
 const cut2Idx = beat1.length + 1;
-const cut3Idx = beat1.length + 1 + beat2.length + 1;
+const cut3Idx = beat1.length + 1 + beat2.length + 1; // start of the offer (beat3)
 
-/* ---------- 2. narration (ElevenLabs, your cloned voice) ---------- */
+/* ---------- 2. narration (ElevenLabs, your cloned voice, pushed expressive) ---------- */
 function narrate() {
   const body = JSON.stringify({
     text: SCRIPT,
     model_id: "eleven_multilingual_v2",
-    voice_settings: { stability: 0.30, similarity_boost: 0.90, style: 0.10, use_speaker_boost: true },
+    voice_settings: { stability: 0.22, similarity_boost: 0.90, style: 0.45, use_speaker_boost: true },
   });
   writeFileSync("el_body.json", body);
   const raw = sh("curl", [
@@ -77,13 +86,13 @@ function narrate() {
   };
 }
 
-/* ---------- 3. captions (.ass) word-timed from char alignment ---------- */
+/* ---------- 3. captions (.ass): bottom Hook for scenes 1-2, centered kinetic Offer cards after ---------- */
 function tc(sec) {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = (sec % 60).toFixed(2).padStart(5, "0");
   return `${h}:${String(m).padStart(2, "0")}:${s}`;
 }
-function buildAss(al, dur) {
-  // group chars into words, then words into short phrases
+function buildAss(al, dur, offerStart) {
+  // group chars into words
   const words = [];
   let cur = "", ws = null, we = 0;
   for (let i = 0; i < al.chars.length; i++) {
@@ -94,23 +103,35 @@ function buildAss(al, dur) {
     cur += c;
   }
   if (cur) words.push({ w: cur, s: ws, e: we });
+  // words -> short phrases (a phrase becomes one on-screen line/card)
   const phrases = [];
   let p = [], len = 0;
   for (const wd of words) {
+    const offer = wd.s >= offerStart - 0.05;
     p.push(wd); len += wd.w.length + 1;
     const endsSentence = /[.!?]$/.test(wd.w);
-    if (len >= 22 || endsSentence) { phrases.push(p); p = []; len = 0; }
+    const limit = offer ? 26 : 22;
+    if (len >= limit || endsSentence) { phrases.push(p); p = []; len = 0; }
   }
   if (p.length) phrases.push(p);
+
   const esc = (s) => s.replace(/[{}]/g, "").replace(/\\/g, "");
   const firmRe = new RegExp(CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  const offerKeys = [/fourteen days free/i, /\bfree\b/i, /return on their marketing/i, /\bchurn\b/i, /\bcommission\b/i, /no white label/i, /\bget paid\b/i];
+
   const dialog = phrases.map((ph) => {
-    const s = ph[0].s, e = ph[ph.length - 1].e + 0.05;
+    const s = ph[0].s, e = ph[ph.length - 1].e + 0.06;
+    const isOffer = s >= offerStart - 0.05;
     let text = esc(ph.map((x) => x.w).join(" "));
-    // highlight the client-firm name in yellow when it lands in a phrase
-    if (firmRe.test(text)) text = text.replace(firmRe, (m) => `{\\c&H00FFFF&}${m}{\\c&HFFFFFF&}`);
+    if (isOffer) {
+      for (const re of offerKeys) text = text.replace(re, (m) => `{\\c${ACCENT}}${m}{\\c${WHITE}}`);
+      // kinetic card: fade + gentle scale-in pop
+      return `Dialogue: 0,${tc(s)},${tc(e)},Offer,,0,0,0,,{\\fad(110,110)\\fscx86\\fscy86\\t(0,170,\\fscx100\\fscy100)}${text}`;
+    }
+    if (firmRe.test(text)) text = text.replace(firmRe, (m) => `{\\c${ACCENT}}${m}{\\c${WHITE}}`);
     return `Dialogue: 0,${tc(s)},${tc(e)},Hook,,0,0,0,,${text}`;
   }).join("\n");
+
   const header = `Dialogue: 0,${tc(0)},${tc(dur)},Header,,0,0,0,,PRIVATE INTAKE AUDIT  -  ${esc(AGENCY).toUpperCase()}`;
   const brand = `Dialogue: 0,${tc(0)},${tc(dur)},Brand,,0,0,0,,INTAKELINE`;
   writeFileSync("captions.ass", `[Script Info]
@@ -123,6 +144,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Hook,DejaVu Sans,88,&H00FFFFFF,&H00000000,&HB0000000,1,0,1,7,3,2,80,80,540,1
+Style: Offer,DejaVu Sans,104,&H00FFFFFF,&H00000000,&HA0000000,1,0,1,8,4,5,120,120,0,1
 Style: Header,DejaVu Sans,40,&H00B4BCD0,&H00000000,&H00000000,1,0,1,4,0,8,60,60,90,1
 Style: Brand,DejaVu Sans,44,&H000EE8F9,&H00000000,&H00000000,1,0,1,4,0,2,60,60,120,1
 
@@ -159,6 +181,7 @@ async function capture(url, file) {
   } catch { await browser.close(); return false; }
 }
 function brandCard(file, w = 1080, h = 1920) {
+  // dark brand background for the offer section (kinetic text carries the motion)
   sh("ffmpeg", ["-y", "-f", "lavfi", "-i", `color=c=0x0A0F1E:s=${w}x${h}`, "-frames:v", "1", file]);
 }
 
@@ -177,18 +200,17 @@ function sceneFilter(idx, dur, file, label) {
 const al = narrate();
 const dur = (al.ends[al.ends.length - 1] || 25) + 0.6;
 let cut2 = al.starts[cut2Idx]; let cut3 = al.starts[cut3Idx];
-if (!(cut2 > 1 && cut2 < dur)) cut2 = dur * 0.25;
-if (!(cut3 > cut2 && cut3 < dur)) cut3 = dur * 0.72;
+if (!(cut2 > 1 && cut2 < dur)) cut2 = dur * 0.18;
+if (!(cut3 > cut2 && cut3 < dur)) cut3 = dur * 0.42;
 console.log(`narration ${dur.toFixed(1)}s  cut2=${cut2.toFixed(1)} cut3=${cut3.toFixed(1)}`);
-buildAss(al, dur);
+buildAss(al, dur, cut3);
 
 const okAgency = await capture(AGENCY_URL, "s1.png");
 if (!okAgency) brandCard("s1.png");
 const okFirm = await capture(SITE_URL, "s2.png");
 if (!okFirm) brandCard("s2.png");
-const okOur = await capture(OUR_URL, "s3.png");
-if (!okOur) brandCard("s3.png");
-console.log(`captures: agency=${okAgency} firm=${okFirm} our=${okOur}`);
+brandCard("s3.png"); // offer scene = dark brand background
+console.log(`captures: agency=${okAgency} firm=${okFirm}`);
 
 const XF = 0.45;
 const L1 = cut2 + 0.4, L2 = (cut3 - cut2) + 0.9, L3 = (dur - cut3) + 0.4;
