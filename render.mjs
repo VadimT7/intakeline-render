@@ -52,11 +52,11 @@ const leak = LEAK_NOTE.replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
 // Scene 1 — agency / legal-software (talks like a person, not a deck)
 const beat1 = `Hey ${FIRST}, real quick. So you're ${AGENCY}, you run the marketing for personal injury firms, and honestly, you're good at it. The leads are coming in.`;
 // Scene 2 — client firm site, then the after-hours leak
-const beat2 = `So I grabbed one of your clients, ${CLIENT_FIRM}, and I did something kind of sneaky. I called their office after hours, pretending I'm someone who just got hurt and needs a lawyer. And nobody picked up. It just went to voicemail. ${leak}. So think about what that person does next. They hang up, and they call the next firm on Google. You did everything right to get them on the phone, and the front desk just lost you the case.`;
-// Scene 3 — the offer (kinetic cards), conversational
-const beat3 = `So here's what I'd actually do about it, and why it's good for you, not just for them. I put an A I receptionist on their line that picks up every single call, day or night, runs the whole intake, and books the consult right there. And for you? Your client tries it free for two weeks, so there's zero risk for them to say yes. They start booking more cases, which makes your marketing look even better than it already does. Happy clients don't leave, so you keep them way longer. And here's the part I really like. You get paid every single month, for every firm you send my way. Just for the intro. No white-labeling, no building anything, none of the work lands on you. You point them to me, I do all of it, and you get a check every month.`;
+const beat2 = `So I grabbed one of your clients, ${CLIENT_FIRM}, and did something kind of sneaky. I called their office after hours, like I'm someone who just got hurt and needs a lawyer. Nobody picked up. Straight to voicemail. ${leak}. So that person hangs up and calls the next firm on Google. You did everything right to get them to call, and the front desk just lost you the case.`;
+// Scene 3 — the offer (kinetic cards), conversational but tight
+const beat3 = `So here's what I'd do, and why it's good for you, not just them. I put an A I receptionist on their line. It picks up every call, day or night, runs the intake, and books the consult. For you? Your client tries it free for two weeks. They book more cases, so your marketing looks even better. Happy clients stick around, so you keep them longer. And you get paid every month, for every firm you refer. No white-labeling, no work on your end. You send them to me, I do the rest, you get a check.`;
 // Scene 4 — CTA (stays on brand bg)
-const beat4 = `I actually already built a line that answers exactly the way their intake should sound. It's on this page, go have a listen. And if you think it's a fit, just grab fifteen minutes with me. That's it.`;
+const beat4 = `I already built a line that answers exactly how their intake should sound. It's on this page, give it a listen. If it's a fit, grab fifteen minutes with me.`;
 const SCRIPT = `${beat1} ${beat2} ${beat3} ${beat4}`;
 const cut2Idx = beat1.length + 1;
 const cut3Idx = beat1.length + 1 + beat2.length + 1; // start of the offer (beat3)
@@ -205,14 +205,16 @@ async function brandBg(file) {
 }
 
 /* ---------- 5. per-scene pan/zoom filter ---------- */
-function sceneFilter(idx, dur, file, label) {
+function sceneFilter(idx, dur, file, label, dim) {
   const { w, h } = probeDims(file);
   const scaledH = Math.round((1080 / w) * h);
   const frames = Math.round(dur * FPS);
+  // dim + vignette the busy site captures so the captions pop (offer bg stays vivid)
+  const d = dim ? "eq=brightness=-0.17:saturation=0.92:contrast=1.04,vignette," : "";
   if (scaledH > 1920 * 1.12) {
-    return `[${idx}:v]scale=1080:-1:flags=lanczos,crop=1080:1920:0:'min((ih-1920)*t/${dur.toFixed(2)}\\,ih-1920)',fps=${FPS},format=yuv420p,setsar=1[${label}]`;
+    return `[${idx}:v]scale=1080:-1:flags=lanczos,crop=1080:1920:0:'min((ih-1920)*t/${dur.toFixed(2)}\\,ih-1920)',${d}fps=${FPS},format=yuv420p,setsar=1[${label}]`;
   }
-  return `[${idx}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='min(zoom+0.0006,1.12)':d=${frames}:s=1080x1920:fps=${FPS},format=yuv420p,setsar=1[${label}]`;
+  return `[${idx}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,${d}zoompan=z='min(zoom+0.0006,1.12)':d=${frames}:s=1080x1920:fps=${FPS},format=yuv420p,setsar=1[${label}]`;
 }
 
 /* ---------- main ---------- */
@@ -240,9 +242,9 @@ const fc = [
   `-i`, `narration.mp3`,
 ];
 const graph = [
-  sceneFilter(0, L1, "s1.png", "a"),
-  sceneFilter(1, L2, "s2.png", "b"),
-  sceneFilter(2, L3, "s3.png", "c"),
+  sceneFilter(0, L1, "s1.png", "a", true),
+  sceneFilter(1, L2, "s2.png", "b", true),
+  sceneFilter(2, L3, "s3.png", "c", false),
   `[a][b]xfade=transition=fade:duration=${XF}:offset=${(cut2 - XF / 2).toFixed(2)}[ab]`,
   `[ab][c]xfade=transition=fade:duration=${XF}:offset=${(cut3 - XF / 2).toFixed(2)}[abc]`,
   `[abc]ass=captions.ass[v]`,
