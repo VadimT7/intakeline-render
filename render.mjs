@@ -49,14 +49,14 @@ const probeDims = (f) => {
 
 /* ---------- 1. script ---------- */
 const leak = LEAK_NOTE.replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
-// Scene 1 — agency / legal-software (generic so it fits both)
-const beat1 = `Hey ${FIRST}, give me thirty seconds. You're ${AGENCY}, and personal injury firms are your whole world. Your marketing is sharp.`;
+// Scene 1 — agency / legal-software (talks like a person, not a deck)
+const beat1 = `Hey ${FIRST}, real quick. So you're ${AGENCY}, you run the marketing for personal injury firms, and honestly, you're good at it. The leads are coming in.`;
 // Scene 2 — client firm site, then the after-hours leak
-const beat2 = `So I checked one of your clients, ${CLIENT_FIRM}. Strong site. Real cases coming in from your work. Then I called their office after hours, posing as an injured lead. It rang out, straight to voicemail. ${leak}. That client just hung up and called the next firm on Google. Your ad dollars brought them in, and the front desk lost them.`;
-// Scene 3 — the offer as kinetic cards
-const beat3 = `Here's the fix, and why it's good for you. I put a twenty four seven A I receptionist on their line. It answers every call, runs the full intake, and books the consult. So what's in it for you? Fourteen days free for your client. They risk nothing. More booked cases means a higher return on their marketing, so you look even better to them. Clients who win don't leave, so your churn drops. And you collect a commission every month, for every firm you refer. Just for the intro. No white label. No extra work. You don't build or manage anything. You refer, I handle all of it, and you get paid.`;
+const beat2 = `So I grabbed one of your clients, ${CLIENT_FIRM}, and I did something kind of sneaky. I called their office after hours, pretending I'm someone who just got hurt and needs a lawyer. And nobody picked up. It just went to voicemail. ${leak}. So think about what that person does next. They hang up, and they call the next firm on Google. You did everything right to get them on the phone, and the front desk just lost you the case.`;
+// Scene 3 — the offer (kinetic cards), conversational
+const beat3 = `So here's what I'd actually do about it, and why it's good for you, not just for them. I put an A I receptionist on their line that picks up every single call, day or night, runs the whole intake, and books the consult right there. And for you? Your client tries it free for two weeks, so there's zero risk for them to say yes. They start booking more cases, which makes your marketing look even better than it already does. Happy clients don't leave, so you keep them way longer. And here's the part I really like. You get paid every single month, for every firm you send my way. Just for the intro. No white-labeling, no building anything, none of the work lands on you. You point them to me, I do all of it, and you get a check every month.`;
 // Scene 4 — CTA (stays on brand bg)
-const beat4 = `I already built the line that answers the way their intake should. It's on this page. Hear it live, and if it makes sense, grab fifteen minutes with me.`;
+const beat4 = `I actually already built a line that answers exactly the way their intake should sound. It's on this page, go have a listen. And if you think it's a fit, just grab fifteen minutes with me. That's it.`;
 const SCRIPT = `${beat1} ${beat2} ${beat3} ${beat4}`;
 const cut2Idx = beat1.length + 1;
 const cut3Idx = beat1.length + 1 + beat2.length + 1; // start of the offer (beat3)
@@ -66,7 +66,7 @@ function narrate() {
   const body = JSON.stringify({
     text: SCRIPT,
     model_id: "eleven_multilingual_v2",
-    voice_settings: { stability: 0.22, similarity_boost: 0.90, style: 0.45, use_speaker_boost: true },
+    voice_settings: { stability: 0.15, similarity_boost: 0.90, style: 0.62, use_speaker_boost: true },
   });
   writeFileSync("el_body.json", body);
   const raw = sh("curl", [
@@ -117,12 +117,12 @@ function buildAss(al, dur, offerStart) {
 
   const esc = (s) => s.replace(/[{}]/g, "").replace(/\\/g, "");
   const firmRe = new RegExp(CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-  const offerKeys = [/fourteen days free/i, /\bfree\b/i, /return on their marketing/i, /\bchurn\b/i, /\bcommission\b/i, /no white label/i, /\bget paid\b/i];
+  const offerKeys = [/free for two weeks/i, /\bfree\b/i, /more cases/i, /every single month/i, /no white-?labeling/i, /zero risk/i, /get a check/i, /paid/i];
 
   const dialog = phrases.map((ph) => {
     const s = ph[0].s, e = ph[ph.length - 1].e + 0.06;
     const isOffer = s >= offerStart - 0.05;
-    let text = esc(ph.map((x) => x.w).join(" "));
+    let text = esc(ph.map((x) => x.w).join(" ")).replace(/\bA I\b/g, "AI");
     if (isOffer) {
       for (const re of offerKeys) text = text.replace(re, (m) => `{\\c${ACCENT}}${m}{\\c${WHITE}}`);
       // kinetic card: fade + gentle scale-in pop
