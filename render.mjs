@@ -68,10 +68,13 @@ let off = 0; for (const s of SEG) { s.charStart = off; off += s.text.length + 1;
 
 /* ---------- 2. narration (ElevenLabs, cloned voice) ---------- */
 function narrate() {
-  const body = JSON.stringify({
-    text: SCRIPT, model_id: "eleven_multilingual_v2",
-    voice_settings: { stability: 0.22, similarity_boost: 0.90, style: 0.45, use_speaker_boost: true },
-  });
+  // log the voice's OWN saved settings (what you hear in the ElevenLabs UI) for reference
+  try {
+    const s = sh("curl", ["-sS", "-f", `https://api.elevenlabs.io/v1/voices/${EL_VOICE}/settings`, "-H", `xi-api-key: ${EL_KEY}`]).toString();
+    console.log("native voice settings:", s);
+  } catch { console.log("voice settings fetch failed"); }
+  // NO voice_settings override -> narration uses the voice's own ElevenLabs settings ("the elevenlabs one")
+  const body = JSON.stringify({ text: SCRIPT, model_id: "eleven_multilingual_v2" });
   writeFileSync("el_body.json", body);
   const raw = sh("curl", ["-sS", "-f", "-X", "POST",
     `https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}/with-timestamps?output_format=mp3_44100_128`,
