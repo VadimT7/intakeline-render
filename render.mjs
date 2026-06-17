@@ -1,32 +1,32 @@
-/* IntakeLine audit-video renderer (narrated, multi-scene, offer-focused).
+/* IntakeLine audit-video renderer — real screen recordings + designed offer slides.
  *
- * Story (your cloned ElevenLabs voice narrates the whole thing):
- *   Scene 1  agency / legal-software site   "Hey {first}. You're {Agency} ..."
- *   Scene 2  client firm site               "I called {firm} after hours ... voicemail ..."
- *   Scene 3  dark brand bg + kinetic cards   the OFFER (trial, ROAS, churn, commission, no white-label)
- *   Scene 4  stays on brand bg               CTA to the page
- * Captions auto-sync to the narration via ElevenLabs character timestamps.
- * Scenes 1-2 caption at the bottom (Hook style); the offer is centered kinetic cards (Offer style).
+ * Scenes (your cloned ElevenLabs voice narrates over everything, captions pinned bottom):
+ *   s1   REAL smooth screen-recording of the agency / legal-software site
+ *   s2   REAL smooth screen-recording of the client firm's site (the after-hours leak story)
+ *   fix  designed slide: the 24/7 AI receptionist
+ *   01-05 designed numbered offer slides (free trial, more cases/ROAS, churn, commission, no white-label)
+ *   cta  designed slide: hear it live + book 15 min
+ * Each scene is rendered to its own clip, then concatenated, captions burned, narration muxed.
  *
- * Input (env): SLUG AGENCY CLIENT_FIRM FIRST_NAME SITE_URL AGENCY_URL LEAK_NOTE PAGE_URL
- *   ELEVEN_API_KEY ELEVEN_VOICE_ID  R2_*  N8N_INGEST_URL
+ * Env: SLUG AGENCY CLIENT_FIRM FIRST_NAME SITE_URL AGENCY_URL LEAK_NOTE PAGE_URL
+ *      ELEVEN_API_KEY ELEVEN_VOICE_ID  R2_*  N8N_INGEST_URL  [LOCAL_TEST=1 for local visual dry-run]
  * Output: 1080x1920 MP4 -> R2 staging -> n8n ingest -> Drive "Intro Videos".
  */
 import { chromium } from "playwright";
 import { execFileSync } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
-import { readFileSync, writeFileSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, statSync, readdirSync, rmSync, existsSync } from "node:fs";
 
 const env = (k, d = "") => (process.env[k] ?? d).toString().trim();
 const SLUG = env("SLUG") || "test";
 const AGENCY = env("AGENCY") || "your agency";
 const CLIENT_FIRM = env("CLIENT_FIRM") || "your client firm";
 const FIRST = env("FIRST_NAME") || "there";
-const SITE_URL = env("SITE_URL");           // client firm site
-const AGENCY_URL = env("AGENCY_URL");        // agency / legal-software site
-const LEAK_NOTE =
-  env("LEAK_NOTE") || "no one picked up and there was no way to leave case details";
+const SITE_URL = env("SITE_URL");
+const AGENCY_URL = env("AGENCY_URL");
+const LEAK_NOTE = env("LEAK_NOTE") || "no one even picked up, and there was no way to leave any details";
 const FPS = 30;
+const LOCAL = env("LOCAL_TEST") === "1";
 
 const EL_KEY = env("ELEVEN_API_KEY");
 const EL_VOICE = env("ELEVEN_VOICE_ID");
@@ -37,104 +37,81 @@ const R2_BUCKET = env("R2_BUCKET", "intakeline-media");
 const N8N_INGEST_URL = env("N8N_INGEST_URL");
 const SKIP_CALLBACK = env("SKIP_CALLBACK") === "1";
 
-const ACCENT = "&H000EE8F9&";   // IntakeLine brand gold (ASS BGR), used to highlight key words
+const ACCENT = "&H000EE8F9&"; // brand gold (ASS BGR)
 const WHITE = "&H00FFFFFF&";
-
 const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "inherit"], maxBuffer: 64 * 1024 * 1024 });
-const probeDims = (f) => {
-  const out = sh("ffprobe", ["-v","error","-select_streams","v:0","-show_entries","stream=width,height","-of","csv=p=0", f]).toString().trim();
-  const [w, h] = out.split(",").map(Number);
-  return { w, h };
-};
 
-/* ---------- 1. script ---------- */
+/* ---------- 1. script broken into timed segments ---------- */
 const leak = LEAK_NOTE.replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
-// Scene 1 — agency / legal-software (talks like a person, not a deck)
-const beat1 = `Hey ${FIRST}, real quick. So you're ${AGENCY}, you run the marketing for personal injury firms, and honestly, you're good at it. The leads are coming in.`;
-// Scene 2 — client firm site, then the after-hours leak
-const beat2 = `So I grabbed one of your clients, ${CLIENT_FIRM}, and did something kind of sneaky. I called their office after hours, like I'm someone who just got hurt and needs a lawyer. Nobody picked up. Straight to voicemail. ${leak}. So that person hangs up and calls the next firm on Google. You did everything right to get them to call, and the front desk just lost you the case.`;
-// Scene 3 — the offer (kinetic cards), conversational but tight
-const beat3 = `So here's what I'd do, and why it's good for you, not just them. I put an A I receptionist on their line. It picks up every call, day or night, runs the intake, and books the consult. For you? Your client tries it free for two weeks. They book more cases, so your marketing looks even better. Happy clients stick around, so you keep them longer. And you get paid every month, for every firm you refer. No white-labeling, no work on your end. You send them to me, I do the rest, you get a check.`;
-// Scene 4 — CTA (stays on brand bg)
-const beat4 = `I already built a line that answers exactly how their intake should sound. It's on this page, give it a listen. If it's a fit, grab fifteen minutes with me.`;
-const SCRIPT = `${beat1} ${beat2} ${beat3} ${beat4}`;
-const cut2Idx = beat1.length + 1;
-const cut3Idx = beat1.length + 1 + beat2.length + 1; // start of the offer (beat3)
+const SEG = [
+  { key: "s1", type: "site", url: AGENCY_URL,
+    text: `Hey ${FIRST}, real quick. So you're ${AGENCY}, you run the marketing for personal injury firms, and honestly, you're good at it. The leads are coming in.` },
+  { key: "s2", type: "site", url: SITE_URL,
+    text: `So I grabbed one of your clients, ${CLIENT_FIRM}, and did something kind of sneaky. I called their office after hours, like I'm someone who just got hurt and needs a lawyer. Nobody picked up. Straight to voicemail. ${leak}. So that person hangs up and calls the next firm on Google. You did everything right to get them to call, and the front desk just lost you the case.` },
+  { key: "fix", type: "slide", slide: { n: "", icon: "📞", title: "A 24/7 AI receptionist", sub: "Answers every call. Runs the full intake. Books the consult." },
+    text: `So here's what I'd do. I put a 24/7 A I receptionist on their line. It picks up every call, runs the intake, and books the consult.` },
+  { key: "o1", type: "slide", slide: { n: "01", icon: "🎁", title: "14 days free", sub: "Your client tries it with zero risk." },
+    text: `And for you, it's all upside. Your client tries it free for two weeks, so there's zero risk to say yes.` },
+  { key: "o2", type: "slide", slide: { n: "02", icon: "📈", title: "More cases, higher ROAS", sub: "Your marketing looks even better." },
+    text: `They start booking more cases, so the return on your marketing goes up, and you look even better to them.` },
+  { key: "o3", type: "slide", slide: { n: "03", icon: "🔒", title: "Lower churn", sub: "Clients who win don't leave." },
+    text: `Clients who win don't leave, so you keep them way longer.` },
+  { key: "o4", type: "slide", slide: { n: "04", icon: "💸", title: "Monthly commission", sub: "Paid every month, just for the intro." },
+    text: `And you get paid every single month, for every firm you refer. Just for the intro.` },
+  { key: "o5", type: "slide", slide: { n: "05", icon: "✋", title: "No white-label, zero work", sub: "You refer. I do all of it." },
+    text: `No white-labeling, no work on your end. You send them to me, I do the rest, you get a check.` },
+  { key: "cta", type: "slide", slide: { n: "", icon: "▶", title: "Hear it live", sub: "It's on this page. If it's a fit, grab 15 minutes." },
+    text: `I already built a line that answers exactly how their intake should sound. It's on this page, give it a listen. If it's a fit, grab fifteen minutes with me.` },
+];
+const SCRIPT = SEG.map((s) => s.text).join(" ");
+let off = 0; for (const s of SEG) { s.charStart = off; off += s.text.length + 1; }
 
-/* ---------- 2. narration (ElevenLabs, your cloned voice, pushed expressive) ---------- */
+/* ---------- 2. narration (ElevenLabs, cloned voice) ---------- */
 function narrate() {
   const body = JSON.stringify({
-    text: SCRIPT,
-    model_id: "eleven_multilingual_v2",
+    text: SCRIPT, model_id: "eleven_multilingual_v2",
     voice_settings: { stability: 0.22, similarity_boost: 0.90, style: 0.45, use_speaker_boost: true },
   });
   writeFileSync("el_body.json", body);
-  const raw = sh("curl", [
-    "-sS", "-f", "-X", "POST",
+  const raw = sh("curl", ["-sS", "-f", "-X", "POST",
     `https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}/with-timestamps?output_format=mp3_44100_128`,
-    "-H", `xi-api-key: ${EL_KEY}`,
-    "-H", "Content-Type: application/json",
-    "--data", `@el_body.json`,
-  ]).toString();
+    "-H", `xi-api-key: ${EL_KEY}`, "-H", "Content-Type: application/json", "--data", "@el_body.json"]).toString();
   const d = JSON.parse(raw);
   writeFileSync("narration.mp3", Buffer.from(d.audio_base64, "base64"));
   const al = d.alignment || d.normalized_alignment;
-  return {
-    chars: al.characters,
-    starts: al.character_start_times_seconds,
-    ends: al.character_end_times_seconds,
-  };
+  return { chars: al.characters, starts: al.character_start_times_seconds, ends: al.character_end_times_seconds };
 }
 
-/* ---------- 3. captions (.ass): bottom Hook for scenes 1-2, centered kinetic Offer cards after ---------- */
+/* ---------- 3. captions (.ass): pinned bottom, phrase-timed, keyword highlight, subtle pop ---------- */
 function tc(sec) {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = (sec % 60).toFixed(2).padStart(5, "0");
   return `${h}:${String(m).padStart(2, "0")}:${s}`;
 }
-function buildAss(al, dur, offerStart) {
-  // group chars into words
+function buildAss(al, dur) {
   const words = [];
   let cur = "", ws = null, we = 0;
   for (let i = 0; i < al.chars.length; i++) {
     const c = al.chars[i];
     if (/\s/.test(c)) { if (cur) { words.push({ w: cur, s: ws, e: we }); cur = ""; ws = null; } continue; }
     if (ws === null) ws = al.starts[i];
-    we = al.ends[i];
-    cur += c;
+    we = al.ends[i]; cur += c;
   }
   if (cur) words.push({ w: cur, s: ws, e: we });
-  // words -> short phrases (a phrase becomes one on-screen line/card)
   const phrases = [];
   let p = [], len = 0;
   for (const wd of words) {
-    const offer = wd.s >= offerStart - 0.05;
     p.push(wd); len += wd.w.length + 1;
-    const endsSentence = /[.!?]$/.test(wd.w);
-    const limit = offer ? 16 : 20;
-    if (len >= limit || endsSentence) { phrases.push(p); p = []; len = 0; }
+    if (len >= 24 || /[.!?,]$/.test(wd.w)) { phrases.push(p); p = []; len = 0; }
   }
   if (p.length) phrases.push(p);
-
   const esc = (s) => s.replace(/[{}]/g, "").replace(/\\/g, "");
-  const firmRe = new RegExp(CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-  const offerKeys = [/free for two weeks/i, /\bfree\b/i, /more cases/i, /every single month/i, /no white-?labeling/i, /zero risk/i, /get a check/i, /paid/i];
-
+  const keys = [/\bfree\b/i, /two weeks/i, /more cases/i, /\bROAS\b/i, /\bchurn\b/i, /commission/i, /every (single )?month/i, /no white-?label/i, /zero risk/i, /get a check/i, new RegExp(CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")];
   const dialog = phrases.map((ph) => {
     const s = ph[0].s, e = ph[ph.length - 1].e + 0.06;
-    const isOffer = s >= offerStart - 0.05;
     let text = esc(ph.map((x) => x.w).join(" ")).replace(/\bA I\b/g, "AI");
-    if (isOffer) {
-      for (const re of offerKeys) text = text.replace(re, (m) => `{\\c${ACCENT}}${m}{\\c${WHITE}}`);
-      // kinetic typography: fast fade + bouncy scale pop (overshoot then settle), slight rise
-      const anim = `{\\fad(60,70)\\fscx56\\fscy56\\t(0,120,\\fscx114\\fscy114)\\t(120,210,\\fscx100\\fscy100)\\move(540,1020,540,960,0,200)}`;
-      return `Dialogue: 0,${tc(s)},${tc(e)},Offer,,0,0,0,,${anim}${text}`;
-    }
-    if (firmRe.test(text)) text = text.replace(firmRe, (m) => `{\\c${ACCENT}}${m}{\\c${WHITE}}`);
-    const anim = `{\\fad(50,60)\\fscx82\\fscy82\\t(0,110,\\fscx100\\fscy100)}`;
-    return `Dialogue: 0,${tc(s)},${tc(e)},Hook,,0,0,0,,${anim}${text}`;
+    for (const re of keys) text = text.replace(re, (m) => `{\\c${ACCENT}}${m}{\\c${WHITE}}`);
+    return `Dialogue: 0,${tc(s)},${tc(e)},Cap,,0,0,0,,{\\fad(50,60)\\fscx88\\fscy88\\t(0,120,\\fscx100\\fscy100)}${text}`;
   }).join("\n");
-
-  const header = `Dialogue: 0,${tc(0)},${tc(dur)},Header,,0,0,0,,PRIVATE INTAKE AUDIT  -  ${esc(AGENCY).toUpperCase()}`;
   const brand = `Dialogue: 0,${tc(0)},${tc(dur)},Brand,,0,0,0,,INTAKELINE`;
   writeFileSync("captions.ass", `[Script Info]
 ScriptType: v4.00+
@@ -145,122 +122,174 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Hook,DejaVu Sans,88,&H00FFFFFF,&H00000000,&HB0000000,1,0,1,7,3,2,80,80,540,1
-Style: Offer,DejaVu Sans,104,&H00FFFFFF,&H00000000,&HA0000000,1,0,1,8,4,5,120,120,0,1
-Style: Header,DejaVu Sans,40,&H00B4BCD0,&H00000000,&H00000000,1,0,1,4,0,8,60,60,90,1
-Style: Brand,DejaVu Sans,44,&H000EE8F9,&H00000000,&H00000000,1,0,1,4,0,2,60,60,120,1
+Style: Cap,DejaVu Sans,76,&H00FFFFFF,&H00000000,&H90000000,1,0,1,5,3,2,90,90,210,1
+Style: Brand,DejaVu Sans,40,&H000EE8F9,&H00000000,&H00000000,1,0,1,3,0,2,60,60,120,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-${header}
 ${brand}
 ${dialog}
 `);
 }
 
-/* ---------- 4. site capture ---------- */
-async function capture(url, file) {
-  if (!url) return false;
-  const browser = await chromium.launch({ args: ["--no-sandbox"] });
+/* ---------- bottom scrim so captions read over bright site recordings ---------- */
+async function makeScrim(file) {
   try {
+    const browser = await chromium.launch({ args: ["--no-sandbox"] });
+    const page = await (await browser.newContext({ viewport: { width: 1080, height: 1920 } })).newPage();
+    await page.setContent(`<body style="margin:0;width:1080px;height:1920px"><div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(7,11,22,.94) 0%,rgba(7,11,22,.80) 15%,rgba(7,11,22,0) 38%)"></div></body>`, { waitUntil: "domcontentloaded" });
+    await page.screenshot({ path: file, omitBackground: true });
+    await browser.close(); return true;
+  } catch { return false; }
+}
+
+/* ---------- 4. real screen recording (smooth eased scroll) ---------- */
+async function recordSite(url, secs, outMp4) {
+  if (!url) return false;
+  const dir = `rec_${Math.random().toString(36).slice(2)}`;
+  let browser;
+  try {
+    browser = await chromium.launch({ args: ["--no-sandbox"] });
     const ctx = await browser.newContext({
-      viewport: { width: 1080, height: 1350 }, deviceScaleFactor: 1.5,
+      viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1,
+      recordVideo: { dir, size: { width: 1080, height: 1920 } },
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
     });
     const page = await ctx.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-    await page.waitForTimeout(2500);
-    for (const re of [/accept/i, /agree/i, /got it/i, /allow all/i]) {
-      try { const b = page.getByRole("button", { name: re }).first(); if (await b.isVisible({ timeout: 700 })) await b.click({ timeout: 700 }); } catch {}
+    await page.waitForTimeout(1600);
+    for (const re of [/accept/i, /agree/i, /got it/i, /allow all/i, /reject/i]) {
+      try { const b = page.getByRole("button", { name: re }).first(); if (await b.isVisible({ timeout: 600 })) await b.click({ timeout: 600 }); } catch {}
     }
-    try {
-      await page.evaluate(async () => { const h = document.body.scrollHeight; for (let y = 0; y < h; y += 700) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 50)); } window.scrollTo(0, 0); });
-      await page.waitForTimeout(1000);
-    } catch {}
-    await page.screenshot({ path: file, fullPage: true });
+    await page.waitForTimeout(400);
+    await page.evaluate(async (ms) => {
+      const max = Math.max(0, document.body.scrollHeight - window.innerHeight);
+      const t0 = performance.now();
+      await new Promise((res) => {
+        function step(t) {
+          const k = Math.min(1, (t - t0) / ms);
+          const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // easeInOutQuad
+          window.scrollTo(0, e * max);
+          if (k < 1) requestAnimationFrame(step); else res();
+        }
+        requestAnimationFrame(step);
+      });
+    }, Math.max(2200, secs * 1000));
+    await page.waitForTimeout(300);
+    await ctx.close();
     await browser.close();
+    const webm = readdirSync(dir).find((f) => f.endsWith(".webm"));
+    if (!webm) return false;
+    // normalize to a clean 1080x1920 clip of exactly `secs`, bottom scrim + gentle fade-in
+    const args = existsSync("scrim.png")
+      ? ["-y", "-i", `${dir}/${webm}`, "-i", "scrim.png", "-filter_complex",
+         `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},format=yuv420p[v0];[v0][1:v]overlay=0:0,fade=t=in:st=0:d=0.3,setsar=1[v]`,
+         "-map", "[v]", "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]
+      : ["-y", "-i", `${dir}/${webm}`, "-vf", `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},fade=t=in:st=0:d=0.3,format=yuv420p,setsar=1`, "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4];
+    sh("ffmpeg", args);
+    rmSync(dir, { recursive: true, force: true });
     return true;
-  } catch { await browser.close(); return false; }
-}
-function brandCard(file, w = 1080, h = 1920) {
-  // flat dark fallback
-  sh("ffmpeg", ["-y", "-f", "lavfi", "-i", `color=c=0x0A0F1E:s=${w}x${h}`, "-frames:v", "1", file]);
-}
-// premium dark-navy gradient bg for the offer (gold glow up top, blue glow at the base); slow zoom adds drift
-async function brandBg(file) {
-  try {
-    const browser = await chromium.launch({ args: ["--no-sandbox"] });
-    const ctx = await browser.newContext({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
-    const page = await ctx.newPage();
-    await page.setContent(`<!doctype html><html><body style="margin:0;width:1080px;height:1920px;background:#070b16;overflow:hidden;position:relative;">
-      <div style="position:absolute;inset:0;background:radial-gradient(120% 78% at 50% 32%, #1b3460 0%, #0d1830 40%, #070b16 74%);"></div>
-      <div style="position:absolute;inset:0;background:radial-gradient(55% 26% at 50% 7%, rgba(249,232,14,0.12) 0%, rgba(249,232,14,0) 70%);"></div>
-      <div style="position:absolute;inset:0;background:radial-gradient(95% 45% at 50% 102%, rgba(14,60,120,0.45) 0%, rgba(7,11,22,0) 62%);"></div>
-      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);"></div>
-    </body></html>`, { waitUntil: "load" });
-    await page.waitForTimeout(200);
-    await page.screenshot({ path: file });
-    await browser.close();
-  } catch { brandCard(file); }
+  } catch (e) { try { await browser?.close(); } catch {} return false; }
 }
 
-/* ---------- 5. per-scene pan/zoom filter ---------- */
-function sceneFilter(idx, dur, file, label, dim) {
-  const { w, h } = probeDims(file);
-  const scaledH = Math.round((1080 / w) * h);
-  const frames = Math.round(dur * FPS);
-  // dim + vignette the busy site captures so the captions pop (offer bg stays vivid)
-  const d = dim ? "eq=brightness=-0.17:saturation=0.92:contrast=1.04,vignette," : "";
-  if (scaledH > 1920 * 1.12) {
-    return `[${idx}:v]scale=1080:-1:flags=lanczos,crop=1080:1920:0:'min((ih-1920)*t/${dur.toFixed(2)}\\,ih-1920)',${d}fps=${FPS},format=yuv420p,setsar=1[${label}]`;
-  }
-  return `[${idx}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,${d}zoompan=z='min(zoom+0.0006,1.12)':d=${frames}:s=1080x1920:fps=${FPS},format=yuv420p,setsar=1[${label}]`;
+/* ---------- 5. designed offer slide (Montserrat, brand gradient, number, icon, agency tag) ---------- */
+function slideHtml({ n, icon, title, sub }) {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Inter:wght@400;600&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:1080px;height:1920px;overflow:hidden;background:#070b16;position:relative;font-family:Inter,Arial,sans-serif}
+.bg{position:absolute;inset:0;background:radial-gradient(120% 76% at 50% 30%,#1b3460 0%,#0d1830 42%,#070b16 76%)}
+.glow{position:absolute;inset:0;background:radial-gradient(52% 24% at 50% 9%,rgba(249,232,14,.13),rgba(249,232,14,0) 70%)}
+.grid{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px)}
+.num{position:absolute;top:120px;left:0;right:0;text-align:center;font-family:Montserrat;font-weight:900;font-size:340px;line-height:1;color:rgba(249,232,14,.10);letter-spacing:-12px}
+.wrap{position:absolute;top:0;left:0;right:0;height:1500px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 120px;text-align:center}
+.icon{font-size:150px;margin-bottom:36px;filter:drop-shadow(0 8px 30px rgba(0,0,0,.4))}
+.title{font-family:Montserrat;font-weight:900;font-size:118px;line-height:1.0;color:#fff;letter-spacing:-3px;text-shadow:0 6px 40px rgba(0,0,0,.5)}
+.sub{font-family:Inter;font-weight:400;font-size:50px;color:#a9bad2;margin-top:40px;line-height:1.32}
+.tag{position:absolute;bottom:470px;left:0;right:0;text-align:center;font-family:Montserrat;font-weight:800;font-size:36px;letter-spacing:6px;color:#f9e80e;text-transform:uppercase;opacity:.92}
+</style></head><body>
+<div class=bg></div><div class=glow></div><div class=grid></div>
+${n ? `<div class=num>${n}</div>` : ""}
+<div class=wrap><div class=icon>${icon || ""}</div><div class=title>${title}</div>${sub ? `<div class=sub>${sub}</div>` : ""}</div>
+<div class=tag>for ${AGENCY}</div>
+</body></html>`;
+}
+async function slideClip(slide, secs, outMp4) {
+  const png = `slide_${Math.random().toString(36).slice(2)}.png`;
+  let browser;
+  try {
+    browser = await chromium.launch({ args: ["--no-sandbox"] });
+    const page = await (await browser.newContext({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 })).newPage();
+    await page.setContent(slideHtml(slide), { waitUntil: "load" });
+    try { await page.evaluate(() => document.fonts.ready); } catch {}
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: png });
+    await browser.close();
+  } catch (e) { try { await browser?.close(); } catch {}; sh("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=0x0A0F1E:s=1080x1920", "-frames:v", "1", png]); }
+  const frames = Math.round(secs * FPS);
+  // ken-burns zoom on the single still: ONE input frame, zoompan expands to exactly `frames`
+  sh("ffmpeg", ["-y", "-i", png,
+    "-vf", `scale=1188:2112,zoompan=z='min(zoom+0.0005,1.10)':d=${frames}:s=1080x1920:fps=${FPS},fade=t=in:st=0:d=0.3,format=yuv420p,setsar=1`,
+    "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]);
+  rmSync(png, { force: true });
 }
 
 /* ---------- main ---------- */
-const al = narrate();
-const dur = (al.ends[al.ends.length - 1] || 25) + 0.6;
-let cut2 = al.starts[cut2Idx]; let cut3 = al.starts[cut3Idx];
-if (!(cut2 > 1 && cut2 < dur)) cut2 = dur * 0.18;
-if (!(cut3 > cut2 && cut3 < dur)) cut3 = dur * 0.42;
-console.log(`narration ${dur.toFixed(1)}s  cut2=${cut2.toFixed(1)} cut3=${cut3.toFixed(1)}`);
-buildAss(al, dur, cut3);
+let al, dur;
+if (LOCAL) {
+  // visual dry-run: fixed durations, silent track, no captions, no upload
+  for (const s of SEG) s.dur = s.type === "site" ? 5.5 : 3.2;
+  dur = SEG.reduce((a, s) => a + s.dur, 0);
+  sh("ffmpeg", ["-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", dur.toFixed(2), "-q:a", "9", "narration.mp3"]);
+} else {
+  al = narrate();
+  dur = (al.ends[al.ends.length - 1] || 30) + 0.5;
+  // segment start times from char alignment, made monotonic with sane fallbacks
+  let prev = 0;
+  for (let i = 0; i < SEG.length; i++) {
+    let t = al.starts[SEG[i].charStart];
+    if (!(t > prev) || !(t < dur)) t = prev + 0.4;
+    SEG[i].start = t; prev = t;
+  }
+  for (let i = 0; i < SEG.length; i++) SEG[i].dur = Math.max(1.4, (i < SEG.length - 1 ? SEG[i + 1].start : dur) - SEG[i].start);
+  buildAss(al, dur);
+}
+console.log("durations:", SEG.map((s) => `${s.key}:${s.dur.toFixed(1)}`).join(" "), "total", dur.toFixed(1));
 
-const okAgency = await capture(AGENCY_URL, "s1.png");
-if (!okAgency) brandCard("s1.png");
-const okFirm = await capture(SITE_URL, "s2.png");
-if (!okFirm) brandCard("s2.png");
-await brandBg("s3.png"); // offer scene = premium gradient bg with slow drift
-console.log(`captures: agency=${okAgency} firm=${okFirm}`);
+await makeScrim("scrim.png");
+const scenes = [];
+for (let i = 0; i < SEG.length; i++) {
+  const s = SEG[i]; const f = `scene${i}.mp4`;
+  if (s.type === "site") {
+    const ok = await recordSite(s.url, s.dur, f);
+    if (!ok) { console.log(`site ${s.key} record failed -> slide fallback`); await slideClip({ n: "", icon: "🌐", title: s.url ? s.key.toUpperCase() : AGENCY, sub: "" }, s.dur, f); }
+    else console.log(`recorded ${s.key} (${s.url})`);
+  } else {
+    await slideClip(s.slide, s.dur, f);
+    console.log(`slide ${s.key}`);
+  }
+  scenes.push(f);
+}
 
-const XF = 0.45;
-const L1 = cut2 + 0.4, L2 = (cut3 - cut2) + 0.9, L3 = (dur - cut3) + 0.4;
-const fc = [
-  `-loop`, `1`, `-t`, L1.toFixed(2), `-i`, `s1.png`,
-  `-loop`, `1`, `-t`, L2.toFixed(2), `-i`, `s2.png`,
-  `-loop`, `1`, `-t`, L3.toFixed(2), `-i`, `s3.png`,
-  `-i`, `narration.mp3`,
-];
-const graph = [
-  sceneFilter(0, L1, "s1.png", "a", true),
-  sceneFilter(1, L2, "s2.png", "b", true),
-  sceneFilter(2, L3, "s3.png", "c", false),
-  `[a][b]xfade=transition=fade:duration=${XF}:offset=${(cut2 - XF / 2).toFixed(2)}[ab]`,
-  `[ab][c]xfade=transition=fade:duration=${XF}:offset=${(cut3 - XF / 2).toFixed(2)}[abc]`,
-  `[abc]ass=captions.ass[v]`,
-].join(";");
-sh("ffmpeg", [
-  "-y", ...fc,
-  "-filter_complex", graph,
-  "-map", "[v]", "-map", "3:a",
-  "-c:v", "libx264", "-preset", "medium", "-crf", "21", "-pix_fmt", "yuv420p",
-  "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart",
-  "out.mp4",
-]);
+// concat all scene clips
+writeFileSync("list.txt", scenes.map((f) => `file '${f}'`).join("\n"));
+sh("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", "list.txt", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(FPS), "body.mp4"]);
+
+// burn captions (skip locally — no libass) then mux narration
+const haveCaps = !LOCAL && existsSync("captions.ass");
+if (haveCaps) {
+  sh("ffmpeg", ["-y", "-i", "body.mp4", "-vf", "ass=captions.ass", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "capped.mp4"]);
+} else {
+  sh("ffmpeg", ["-y", "-i", "body.mp4", "-c", "copy", "capped.mp4"]);
+}
+sh("ffmpeg", ["-y", "-i", "capped.mp4", "-i", "narration.mp3", "-map", "0:v", "-map", "1:a",
+  "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", "out.mp4"]);
 const sizeMB = (statSync("out.mp4").size / 1e6).toFixed(2);
 console.log(`rendered out.mp4 (${sizeMB} MB, ${dur.toFixed(1)}s)`);
 
-/* ---------- 6. R2 upload (SigV4) + n8n callback ---------- */
+if (LOCAL) { console.log("LOCAL dry-run done (no captions, no upload)"); process.exit(0); }
+
+/* ---------- R2 upload (SigV4) + n8n callback ---------- */
 function r2Put(objectKey, file, contentType) {
   const host = `${R2_ACCOUNT}.r2.cloudflarestorage.com`;
   const bodyBuf = readFileSync(file);
@@ -276,9 +305,8 @@ function r2Put(objectKey, file, contentType) {
   const kSig = hmac(hmac(hmac(hmac("AWS4" + R2_SECRET, dateStamp), "auto"), "s3"), "aws4_request");
   const sig = createHmac("sha256", kSig).update(sts).digest("hex");
   const auth = `AWS4-HMAC-SHA256 Credential=${R2_KEY}/${scope}, SignedHeaders=${sh_}, Signature=${sig}`;
-  sh("curl", ["-sS", "-f", "-X", "PUT",
-    "-H", `Host: ${host}`, "-H", `x-amz-date: ${amzDate}`, "-H", `x-amz-content-sha256: ${payloadHash}`,
-    "-H", `Authorization: ${auth}`, "-H", `Content-Type: ${contentType}`,
+  sh("curl", ["-sS", "-f", "-X", "PUT", "-H", `Host: ${host}`, "-H", `x-amz-date: ${amzDate}`,
+    "-H", `x-amz-content-sha256: ${payloadHash}`, "-H", `Authorization: ${auth}`, "-H", `Content-Type: ${contentType}`,
     "--data-binary", `@${file}`, `https://${host}/${R2_BUCKET}/${objectKey}`]);
 }
 const objectKey = `staging/${SLUG}.mp4`;
