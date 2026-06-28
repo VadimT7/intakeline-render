@@ -45,7 +45,7 @@ const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "i
 const leak = LEAK_NOTE.replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
 const SEG = [
   { key: "s1", type: "site", url: AGENCY_URL,
-    text: `Hey ${FIRST}... real quick - this one's worth two minutes. So, ${AGENCY}: you run the marketing for personal injury firms, and honestly? You're good at it. The leads are coming in.` },
+    text: `Hey - real quick, this is for the ${AGENCY} team. So... you run the marketing for personal injury firms, and honestly? You're good at it. The leads are coming in.` },
   { key: "s2", type: "site", url: SITE_URL,
     text: `So I grabbed one of your clients - ${CLIENT_FIRM} - and I did something kind of sneaky. I called their office, after hours, like I'm someone who just got hurt and needs a lawyer right now. And then... nothing. Nobody picks up, just straight to voicemail. ${leak}. So that person? They hang up, and they call the next firm on Google. You did everything right to get them to call... and the front desk just lost you the case.` },
   { key: "fix", type: "slide", slide: { n: "", icon: "📞", title: "A 24/7 AI receptionist", sub: "Answers every call. Runs the full intake. Books the consult." },
