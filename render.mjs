@@ -80,7 +80,7 @@ function narrate() {
     model_id: "eleven_multilingual_v2",
     // Natural/human tune: low style (high style read artificial/over-performed), high similarity for the real
     // clone's texture, moderate stability for consistency, speed just under 1 for unhurried human pacing.
-    voice_settings: { stability: 0.45, similarity_boost: 0.85, style: 0.2, use_speaker_boost: true, speed: 0.95 },
+    voice_settings: { stability: 0.32, similarity_boost: 0.85, style: 0.25, use_speaker_boost: true, speed: 0.97 },
   });
   writeFileSync("el_body.json", body);
   const raw = sh("curl", ["-sS", "-f", "-X", "POST",
