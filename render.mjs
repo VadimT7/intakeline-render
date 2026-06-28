@@ -73,20 +73,31 @@ function narrate() {
     const s = sh("curl", ["-sS", "-f", `https://api.elevenlabs.io/v1/voices/${EL_VOICE}/settings`, "-H", `xi-api-key: ${EL_KEY}`]).toString();
     console.log("native voice settings:", s);
   } catch { console.log("voice settings fetch failed"); }
-  // EXPRESSIVE override: the voice's saved defaults read flat/monotone. Low stability + high style makes the
-  // cloned voice actually perform - emotional, dynamic, varied pacing - while similarity_boost keeps it sounding like Vadim.
-  const body = JSON.stringify({
-    text: SCRIPT,
-    model_id: "eleven_multilingual_v2",
-    // Natural/human tune: low style (high style read artificial/over-performed), high similarity for the real
-    // clone's texture, moderate stability for consistency, speed just under 1 for unhurried human pacing.
-    voice_settings: { stability: 0.32, similarity_boost: 0.85, style: 0.25, use_speaker_boost: true, speed: 0.97 },
-  });
-  writeFileSync("el_body.json", body);
-  const raw = sh("curl", ["-sS", "-f", "-X", "POST",
-    `https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}/with-timestamps?output_format=mp3_44100_128`,
-    "-H", `xi-api-key: ${EL_KEY}`, "-H", "Content-Type: application/json", "--data", "@el_body.json"]).toString();
-  const d = JSON.parse(raw);
+  // Human tune. multilingual_v2 honors these directly; eleven_v3 (tried first) is the most human/natural model.
+  const vs = { stability: 0.4, similarity_boost: 0.9, style: 0.3, use_speaker_boost: true, speed: 0.97 };
+  const tts = (model, settings) => {
+    const payload = { text: SCRIPT, model_id: model };
+    if (settings) payload.voice_settings = settings;
+    writeFileSync("el_body.json", JSON.stringify(payload));
+    const raw = sh("curl", ["-sS", "-f", "-X", "POST",
+      `https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}/with-timestamps?output_format=mp3_44100_128`,
+      "-H", `xi-api-key: ${EL_KEY}`, "-H", "Content-Type: application/json", "--data", "@el_body.json"]).toString();
+    const d = JSON.parse(raw);
+    const al = d.alignment || d.normalized_alignment;
+    if (!al || !al.characters || !d.audio_base64) throw new Error("no alignment/audio from " + model);
+    return d;
+  };
+  // Try the most human model first; if v3 is unavailable or can't return caption timestamps, gracefully fall back to tuned v2.
+  let d;
+  try { d = tts("eleven_v3", vs); console.log("NARRATION MODEL: eleven_v3 (most human)"); }
+  catch (e1) {
+    console.log("eleven_v3+settings failed (" + String(e1.message).slice(0, 90) + "); trying v3 defaults");
+    try { d = tts("eleven_v3", null); console.log("NARRATION MODEL: eleven_v3 (defaults)"); }
+    catch (e2) {
+      console.log("eleven_v3 unavailable (" + String(e2.message).slice(0, 90) + "); falling back to eleven_multilingual_v2");
+      d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2");
+    }
+  }
   writeFileSync("narration.mp3", Buffer.from(d.audio_base64, "base64"));
   const al = d.alignment || d.normalized_alignment;
   return { chars: al.characters, starts: al.character_start_times_seconds, ends: al.character_end_times_seconds };
