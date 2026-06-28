@@ -80,13 +80,20 @@ function narrate() {
     const payload = { text: SCRIPT, model_id: model };
     if (settings) payload.voice_settings = settings;
     writeFileSync("el_body.json", JSON.stringify(payload));
-    const raw = sh("curl", ["-sS", "-f", "-X", "POST",
-      `https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}/with-timestamps?output_format=mp3_44100_128`,
-      "-H", `xi-api-key: ${EL_KEY}`, "-H", "Content-Type: application/json", "--data", "@el_body.json"]).toString();
-    const d = JSON.parse(raw);
-    const al = d.alignment || d.normalized_alignment;
-    if (!al || !al.characters || !d.audio_base64) throw new Error("no alignment/audio from " + model);
-    return d;
+    // Highest source fidelity the tier allows -> cleaner SAME voice (no tonal change); falls back to 128k.
+    for (const fmt of ["mp3_44100_192", "mp3_44100_128"]) {
+      try {
+        const raw = sh("curl", ["-sS", "-f", "-X", "POST",
+          `https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}/with-timestamps?output_format=${fmt}`,
+          "-H", `xi-api-key: ${EL_KEY}`, "-H", "Content-Type: application/json", "--data", "@el_body.json"]).toString();
+        const d = JSON.parse(raw);
+        const al = d.alignment || d.normalized_alignment;
+        if (!al || !al.characters || !d.audio_base64) throw new Error("no alignment/audio");
+        console.log("EL SOURCE FORMAT:", fmt);
+        return d;
+      } catch (e) { console.log("format " + fmt + " failed (" + String(e.message).slice(0, 50) + ")"); }
+    }
+    throw new Error("all source formats failed for " + model);
   };
   // v2 is the known-good base (the take you preferred). v3 is opt-in via TRY_V3=1 for separate experiments.
   let d;
@@ -308,10 +315,8 @@ if (haveCaps) {
   sh("ffmpeg", ["-y", "-i", "body.mp4", "-c", "copy", "capped.mp4"]);
 }
 sh("ffmpeg", ["-y", "-i", "capped.mp4", "-i", "narration.mp3", "-map", "0:v", "-map", "1:a",
-  "-c:v", "copy",
-  // voice sweetening (fixes the "bad mic"): de-rumble, de-mud, presence + air to undo the muffle, broadcast loudness, 256k AAC.
-  "-af", "highpass=f=80,equalizer=f=300:t=o:w=1.0:g=-2,equalizer=f=3200:t=o:w=1.2:g=2,highshelf=f=9000:g=2.5,loudnorm=I=-16:TP=-1.5:LRA=11",
-  "-c:a", "aac", "-b:a", "256k", "-ar", "44100", "-shortest", "-movflags", "+faststart", "out.mp4"]);
+  // EXACT same character as ZZ Human 4 - NO EQ/coloring. Only a clean, near-transparent 320k encode of the original voice.
+  "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", "-shortest", "-movflags", "+faststart", "out.mp4"]);
 const sizeMB = (statSync("out.mp4").size / 1e6).toFixed(2);
 console.log(`rendered out.mp4 (${sizeMB} MB, ${dur.toFixed(1)}s)`);
 
