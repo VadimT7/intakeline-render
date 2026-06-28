@@ -74,7 +74,8 @@ function narrate() {
     console.log("native voice settings:", s);
   } catch { console.log("voice settings fetch failed"); }
   // Human tune. multilingual_v2 honors these directly; eleven_v3 (tried first) is the most human/natural model.
-  const vs = { stability: 0.4, similarity_boost: 0.9, style: 0.3, use_speaker_boost: true, speed: 0.97 };
+  // Kept ZZ Human 2's base (pace + stability); only STYLE raised 0.2 -> 0.5 to widen the tonal up/down (less monotone).
+  const vs = { stability: 0.45, similarity_boost: 0.85, style: 0.5, use_speaker_boost: true, speed: 0.95 };
   const tts = (model, settings) => {
     const payload = { text: SCRIPT, model_id: model };
     if (settings) payload.voice_settings = settings;
@@ -87,16 +88,16 @@ function narrate() {
     if (!al || !al.characters || !d.audio_base64) throw new Error("no alignment/audio from " + model);
     return d;
   };
-  // Try the most human model first; if v3 is unavailable or can't return caption timestamps, gracefully fall back to tuned v2.
+  // v2 is the known-good base (the take you preferred). v3 is opt-in via TRY_V3=1 for separate experiments.
   let d;
-  try { d = tts("eleven_v3", vs); console.log("NARRATION MODEL: eleven_v3 (most human)"); }
-  catch (e1) {
-    console.log("eleven_v3+settings failed (" + String(e1.message).slice(0, 90) + "); trying v3 defaults");
-    try { d = tts("eleven_v3", null); console.log("NARRATION MODEL: eleven_v3 (defaults)"); }
-    catch (e2) {
-      console.log("eleven_v3 unavailable (" + String(e2.message).slice(0, 90) + "); falling back to eleven_multilingual_v2");
-      d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2");
+  if (process.env.TRY_V3 === "1") {
+    try { d = tts("eleven_v3", vs); console.log("NARRATION MODEL: eleven_v3 (most human)"); }
+    catch (e1) {
+      try { d = tts("eleven_v3", null); console.log("NARRATION MODEL: eleven_v3 (defaults)"); }
+      catch (e2) { console.log("eleven_v3 unavailable (" + String(e2.message).slice(0, 80) + "); using v2"); d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2"); }
     }
+  } else {
+    d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2");
   }
   writeFileSync("narration.mp3", Buffer.from(d.audio_base64, "base64"));
   const al = d.alignment || d.normalized_alignment;
