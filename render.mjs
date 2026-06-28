@@ -337,6 +337,15 @@ sh("ffmpeg", ["-y", "-i", "capped.mp4", "-i", "narration.mp3", "-map", "0:v", "-
   "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", "-shortest", "-movflags", "+faststart", "out.mp4"]);
 const sizeMB = (statSync("out.mp4").size / 1e6).toFixed(2);
 console.log(`rendered out.mp4 (${sizeMB} MB, ${dur.toFixed(1)}s)`);
+// proof sheet: 6 evenly-spaced frames tiled, base64 to the log so the editing can be eyeballed without downloading the full mp4
+try {
+  const d2 = parseFloat(sh("ffprobe", ["-v", "0", "-show_entries", "format=duration", "-of", "csv=p=0", "out.mp4"]).toString().trim()) || dur;
+  const rate = (5.999 / d2).toFixed(4);
+  sh("ffmpeg", ["-y", "-i", "out.mp4", "-vf", `fps=${rate},scale=170:302,tile=6x1`, "-frames:v", "1", "sheet.jpg"]);
+  console.log("SHEET_B64_START");
+  console.log(readFileSync("sheet.jpg").toString("base64"));
+  console.log("SHEET_B64_END");
+} catch (e) { console.log("sheet fail:", e.message); }
 
 if (LOCAL) { console.log("LOCAL dry-run done (no captions, no upload)"); process.exit(0); }
 
