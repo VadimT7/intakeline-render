@@ -73,8 +73,13 @@ function narrate() {
     const s = sh("curl", ["-sS", "-f", `https://api.elevenlabs.io/v1/voices/${EL_VOICE}/settings`, "-H", `xi-api-key: ${EL_KEY}`]).toString();
     console.log("native voice settings:", s);
   } catch { console.log("voice settings fetch failed"); }
-  // NO voice_settings override -> narration uses the voice's own ElevenLabs settings ("the elevenlabs one")
-  const body = JSON.stringify({ text: SCRIPT, model_id: "eleven_multilingual_v2" });
+  // EXPRESSIVE override: the voice's saved defaults read flat/monotone. Low stability + high style makes the
+  // cloned voice actually perform - emotional, dynamic, varied pacing - while similarity_boost keeps it sounding like Vadim.
+  const body = JSON.stringify({
+    text: SCRIPT,
+    model_id: "eleven_multilingual_v2",
+    voice_settings: { stability: 0.3, similarity_boost: 0.75, style: 0.65, use_speaker_boost: true },
+  });
   writeFileSync("el_body.json", body);
   const raw = sh("curl", ["-sS", "-f", "-X", "POST",
     `https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}/with-timestamps?output_format=mp3_44100_128`,
