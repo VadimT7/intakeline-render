@@ -68,18 +68,16 @@ console.log("site tagline:", TAGLINE || "(none - generic hook)");
 const SEG = [
   { key: "s1", type: "site", url: AGENCY_URL,
     text: TAGLINE
-      ? `${AGENCY} - hold up. I was just on your site: "${TAGLINE}". You clearly know how to get injury firms the calls. But I just watched one of those calls vanish.`
-      : `${AGENCY} - hold up, this matters. You're getting personal injury firms the phone calls, and you're good at it. But I just watched one of those calls vanish.` },
+      ? `${AGENCY} - hold up. I was just on your site: "${TAGLINE}". But watch what happens to one of those hard-won calls.`
+      : `${AGENCY} - hold up. You get injury firms the calls. But watch what happens to one of those hard-won calls.` },
   { key: "s2", type: "site", url: SITE_URL,
-    text: `I called ${CLIENT_FIRM} after hours - like an injured lead ready to sign. It rang out. Voicemail. ${leak}. That case just walked straight to the next firm on Google.` },
-  { key: "fix", type: "slide", slide: { n: "", icon: "📞", title: "A 24/7 AI receptionist", sub: "Answers every call. Runs the intake. Books the consult." },
-    text: `Here's the fix. A twenty-four-seven A.I. receptionist on their line. It answers every call, runs the full intake, and books the consult. Nothing slips through.` },
-  { key: "o1", type: "slide", slide: { n: "", icon: "🎁", title: "Zero risk. Zero work.", sub: "Free 14-day trial. I build all of it." },
-    text: `And for you? Pure upside. Your client tries it free for two weeks, and I build the entire thing. You don't lift a finger.` },
-  { key: "o2", type: "slide", slide: { n: "", icon: "💸", title: "They win. You get paid.", sub: "More cases booked. Commission every month." },
-    text: `They book more cases, your marketing looks even better, and you pocket a commission every single month - just for the intro.` },
-  { key: "cta", type: "slide", slide: { n: "", icon: "▶", title: "Hear it live", sub: "Live line on this page. Then grab 15 minutes." },
-    text: `There's a live line on this page answering right now, as ${CLIENT_FIRM}. Go hear it. If it lands, grab fifteen minutes with me.` },
+    text: `I called ${CLIENT_FIRM} after hours, posing as an injured lead. Voicemail. ${leak}. That case walked straight to a competitor.` },
+  { key: "fix", type: "slide", slide: { n: "", icon: "📞", title: "A 24/7 AI receptionist", sub: "" },
+    text: `The fix? A twenty-four-seven A.I. receptionist. It answers every call, runs intake, and books the consult.` },
+  { key: "o1", type: "slide", slide: { n: "", icon: "💸", title: "Free. And you get paid.", sub: "" },
+    text: `It's free for two weeks, I build all of it, and you earn a commission every month - just for the intro.` },
+  { key: "cta", type: "slide", slide: { n: "", icon: "▶", title: "Hear it live", sub: "" },
+    text: `A live demo's on this page answering as ${CLIENT_FIRM}. Hear it - then grab fifteen minutes.` },
 ];
 const SCRIPT = SEG.map((s) => s.text).join(" ");
 let off = 0; for (const s of SEG) { s.charStart = off; off += s.text.length + 1; }
@@ -152,7 +150,7 @@ function buildAss(al, dur) {
   }
   if (p.length) phrases.push(p);
   const esc = (s) => s.replace(/[{}]/g, "").replace(/\\/g, "");
-  const keys = [/\bvanish(ed)?\b/i, /voicemail/i, /\bfree\b/i, /two weeks/i, /more cases/i, /every call/i, /commission/i, /every single month/i, /fifteen minutes/i, /lift a finger/i, /nothing slips( through)?/i, new RegExp(CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")];
+  const keys = [/voicemail/i, /competitor/i, /\bfree\b/i, /two weeks/i, /every call/i, /commission/i, /every month/i, /fifteen minutes/i, new RegExp(CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")];
   const dialog = phrases.map((ph) => {
     const s = ph[0].s, e = ph[ph.length - 1].e + 0.06;
     let text = esc(ph.map((x) => x.w).join(" ")).replace(/\bA I\b/g, "AI");
