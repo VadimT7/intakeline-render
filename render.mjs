@@ -45,23 +45,17 @@ const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "i
 const leak = LEAK_NOTE.replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
 const SEG = [
   { key: "s1", type: "site", url: AGENCY_URL,
-    text: `Hey - real quick, this is for the ${AGENCY} team. So... you run the marketing for personal injury firms, and honestly? You're good at it. The leads are coming in.` },
+    text: `${AGENCY} - hold up, this matters. You're getting personal injury firms the phone calls, and you're good at it. But I just watched one of those calls vanish.` },
   { key: "s2", type: "site", url: SITE_URL,
-    text: `So I grabbed one of your clients - ${CLIENT_FIRM} - and I did something kind of sneaky. I called their office, after hours, like I'm someone who just got hurt and needs a lawyer right now. And then... nothing. Nobody picks up, just straight to voicemail. ${leak}. So that person? They hang up, and they call the next firm on Google. You did everything right to get them to call... and the front desk just lost you the case.` },
-  { key: "fix", type: "slide", slide: { n: "", icon: "📞", title: "A 24/7 AI receptionist", sub: "Answers every call. Runs the full intake. Books the consult." },
-    text: `So here's what I'd do. I put a 24/7 A I receptionist on their line. It picks up every call, runs the intake, and books the consult.` },
-  { key: "o1", type: "slide", slide: { n: "01", icon: "🎁", title: "14 days free", sub: "Your client tries it with zero risk." },
-    text: `And for you, it's all upside. Your client tries it free for two weeks, so there's zero risk to say yes.` },
-  { key: "o2", type: "slide", slide: { n: "02", icon: "📈", title: "More cases, higher ROAS", sub: "Your marketing looks even better." },
-    text: `They start booking more cases, so the return on your marketing goes up, and you look even better to them.` },
-  { key: "o3", type: "slide", slide: { n: "03", icon: "🔒", title: "Lower churn", sub: "Clients who win don't leave." },
-    text: `Clients who win don't leave, so you keep them way longer.` },
-  { key: "o4", type: "slide", slide: { n: "04", icon: "💸", title: "Monthly commission", sub: "Paid every month, just for the intro." },
-    text: `And you get paid every single month, for every firm you refer. Just for the intro.` },
-  { key: "o5", type: "slide", slide: { n: "05", icon: "✋", title: "No white-label, zero work", sub: "You refer. I do all of it." },
-    text: `No white-labeling, no work on your end. You send them to me, I do the rest, you get a check.` },
-  { key: "cta", type: "slide", slide: { n: "", icon: "▶", title: "Hear it live", sub: "It's on this page. If it's a fit, grab 15 minutes." },
-    text: `I already built a line that answers exactly how ${CLIENT_FIRM}'s intake should sound. It's right on this page - give it a listen. And if it's a fit... grab fifteen minutes with me.` },
+    text: `I called ${CLIENT_FIRM} after hours - like an injured lead ready to sign. It rang out. Voicemail. ${leak}. That case just walked straight to the next firm on Google.` },
+  { key: "fix", type: "slide", slide: { n: "", icon: "📞", title: "A 24/7 AI receptionist", sub: "Answers every call. Runs the intake. Books the consult." },
+    text: `Here's the fix. A twenty-four-seven A.I. receptionist on their line. It answers every call, runs the full intake, and books the consult. Nothing slips through.` },
+  { key: "o1", type: "slide", slide: { n: "", icon: "🎁", title: "Zero risk. Zero work.", sub: "Free 14-day trial. I build all of it." },
+    text: `And for you? Pure upside. Your client tries it free for two weeks, and I build the entire thing. You don't lift a finger.` },
+  { key: "o2", type: "slide", slide: { n: "", icon: "💸", title: "They win. You get paid.", sub: "More cases booked. Commission every month." },
+    text: `They book more cases, your marketing looks even better, and you pocket a commission every single month - just for the intro.` },
+  { key: "cta", type: "slide", slide: { n: "", icon: "▶", title: "Hear it live", sub: "Live line on this page. Then grab 15 minutes." },
+    text: `There's a live line on this page answering right now, as ${CLIENT_FIRM}. Go hear it. If it lands, grab fifteen minutes with me.` },
 ];
 const SCRIPT = SEG.map((s) => s.text).join(" ");
 let off = 0; for (const s of SEG) { s.charStart = off; off += s.text.length + 1; }
