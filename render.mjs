@@ -308,7 +308,10 @@ if (haveCaps) {
   sh("ffmpeg", ["-y", "-i", "body.mp4", "-c", "copy", "capped.mp4"]);
 }
 sh("ffmpeg", ["-y", "-i", "capped.mp4", "-i", "narration.mp3", "-map", "0:v", "-map", "1:a",
-  "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", "out.mp4"]);
+  "-c:v", "copy",
+  // voice sweetening (fixes the "bad mic"): de-rumble, de-mud, presence + air to undo the muffle, broadcast loudness, 256k AAC.
+  "-af", "highpass=f=80,equalizer=f=300:t=o:w=1.0:g=-2,equalizer=f=3200:t=o:w=1.2:g=2,highshelf=f=9000:g=2.5,loudnorm=I=-16:TP=-1.5:LRA=11",
+  "-c:a", "aac", "-b:a", "256k", "-ar", "44100", "-shortest", "-movflags", "+faststart", "out.mp4"]);
 const sizeMB = (statSync("out.mp4").size / 1e6).toFixed(2);
 console.log(`rendered out.mp4 (${sizeMB} MB, ${dur.toFixed(1)}s)`);
 
