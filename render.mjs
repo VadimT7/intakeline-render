@@ -48,14 +48,19 @@ function siteTagline(url) {
   if (!url) return "";
   try {
     const html = sh("curl", ["-sSL", "-m", "12", "-A", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)", url]).toString();
-    const pick = (re) => { const m = html.match(re); return m ? m[1] : ""; };
-    let t = pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)
-         || pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
-         || pick(/<h1[^>]*>([\s\S]*?)<\/h1>/i)
-         || pick(/<title[^>]*>([\s\S]*?)<\/title>/i);
-    t = t.replace(/<[^>]+>/g, " ").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
-    t = t.split(/\s+[|–—:•]\s+|\s+\-\s+/)[0].trim();
-    return (t.length >= 12 && t.length <= 70) ? t : "";
+    const grab = (re) => { const m = html.match(re); return m ? m[1] : ""; };
+    const clean = (s) => s.replace(/<[^>]+>/g, " ").replace(/&amp;/gi, "&").replace(/&#0?39;|&rsquo;|&apos;/gi, "'").replace(/&quot;/gi, '"').replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
+    const firstClause = (s) => { let c = clean(s).split(/\s[|·•–—]\s|\s-\s/)[0].trim(); const d = c.search(/[.!?]\s/); if (d > 12) c = c.slice(0, d + 1); return c.trim(); };
+    const cands = [
+      grab(/<h1[^>]*>([\s\S]*?)<\/h1>/i),
+      grab(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i),
+      grab(/<title[^>]*>([\s\S]*?)<\/title>/i),
+      grab(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i),
+      grab(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i),
+    ].map(firstClause).filter(Boolean);
+    const junk = /\b(error|403|404|forbidden|not found|access denied|just a moment|attention required|enable javascript|are you a robot|cloudflare|page not found|untitled|home ?page)\b/i;
+    for (const c of cands) if (c.length >= 12 && c.length <= 70 && !junk.test(c)) return c;
+    return "";
   } catch { return ""; }
 }
 const TAGLINE = siteTagline(AGENCY_URL);
@@ -147,12 +152,12 @@ function buildAss(al, dur) {
   }
   if (p.length) phrases.push(p);
   const esc = (s) => s.replace(/[{}]/g, "").replace(/\\/g, "");
-  const keys = [/\bfree\b/i, /two weeks/i, /more cases/i, /\bROAS\b/i, /\bchurn\b/i, /commission/i, /every (single )?month/i, /no white-?label/i, /zero risk/i, /get a check/i, new RegExp(CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")];
+  const keys = [/\bvanish(ed)?\b/i, /voicemail/i, /\bfree\b/i, /two weeks/i, /more cases/i, /every call/i, /commission/i, /every single month/i, /fifteen minutes/i, /lift a finger/i, /nothing slips( through)?/i, new RegExp(CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")];
   const dialog = phrases.map((ph) => {
     const s = ph[0].s, e = ph[ph.length - 1].e + 0.06;
     let text = esc(ph.map((x) => x.w).join(" ")).replace(/\bA I\b/g, "AI");
     for (const re of keys) text = text.replace(re, (m) => `{\\c${ACCENT}}${m}{\\c${WHITE}}`);
-    return `Dialogue: 0,${tc(s)},${tc(e)},Cap,,0,0,0,,{\\fad(50,60)\\fscx88\\fscy88\\t(0,120,\\fscx100\\fscy100)}${text}`;
+    return `Dialogue: 0,${tc(s)},${tc(e)},Cap,,0,0,0,,{\\fad(40,50)\\fscx72\\fscy72\\t(0,140,\\fscx100\\fscy100)}${text}`;
   }).join("\n");
   const brand = `Dialogue: 0,${tc(0)},${tc(dur)},Brand,,0,0,0,,INTAKELINE`;
   writeFileSync("captions.ass", `[Script Info]
@@ -164,7 +169,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Cap,DejaVu Sans,76,&H00FFFFFF,&H00000000,&H90000000,1,0,1,5,3,2,90,90,210,1
+Style: Cap,DejaVu Sans,90,&H00FFFFFF,&H00000000,&H90000000,1,0,1,6,4,2,80,80,220,1
 Style: Brand,DejaVu Sans,40,&H000EE8F9,&H00000000,&H00000000,1,0,1,3,0,2,60,60,120,1
 
 [Events]
