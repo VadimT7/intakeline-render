@@ -45,9 +45,9 @@ const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "i
 const leak = LEAK_NOTE.replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
 const SEG = [
   { key: "s1", type: "site", url: AGENCY_URL,
-    text: `Hey ${FIRST}, real quick. So you're ${AGENCY}, you run the marketing for personal injury firms, and honestly, you're good at it. The leads are coming in.` },
+    text: `Hey ${FIRST}... real quick - this one's worth two minutes. So, ${AGENCY}: you run the marketing for personal injury firms, and honestly? You're good at it. The leads are coming in.` },
   { key: "s2", type: "site", url: SITE_URL,
-    text: `So I grabbed one of your clients, ${CLIENT_FIRM}, and did something kind of sneaky. I called their office after hours, like I'm someone who just got hurt and needs a lawyer. Nobody picked up. Straight to voicemail. ${leak}. So that person hangs up and calls the next firm on Google. You did everything right to get them to call, and the front desk just lost you the case.` },
+    text: `So I grabbed one of your clients - ${CLIENT_FIRM} - and I did something kind of sneaky. I called their office, after hours, like I'm someone who just got hurt and needs a lawyer right now. And... nobody picked up. Straight to voicemail. ${leak}. So that person? They hang up, and they call the next firm on Google. You did everything right to get them to call... and the front desk just lost you the case.` },
   { key: "fix", type: "slide", slide: { n: "", icon: "📞", title: "A 24/7 AI receptionist", sub: "Answers every call. Runs the full intake. Books the consult." },
     text: `So here's what I'd do. I put a 24/7 A I receptionist on their line. It picks up every call, runs the intake, and books the consult.` },
   { key: "o1", type: "slide", slide: { n: "01", icon: "🎁", title: "14 days free", sub: "Your client tries it with zero risk." },
@@ -61,7 +61,7 @@ const SEG = [
   { key: "o5", type: "slide", slide: { n: "05", icon: "✋", title: "No white-label, zero work", sub: "You refer. I do all of it." },
     text: `No white-labeling, no work on your end. You send them to me, I do the rest, you get a check.` },
   { key: "cta", type: "slide", slide: { n: "", icon: "▶", title: "Hear it live", sub: "It's on this page. If it's a fit, grab 15 minutes." },
-    text: `I already built a line that answers exactly how their intake should sound. It's on this page, give it a listen. If it's a fit, grab fifteen minutes with me.` },
+    text: `I already built a line that answers exactly how ${CLIENT_FIRM}'s intake should sound. It's right on this page - give it a listen. And if it's a fit... grab fifteen minutes with me.` },
 ];
 const SCRIPT = SEG.map((s) => s.text).join(" ");
 let off = 0; for (const s of SEG) { s.charStart = off; off += s.text.length + 1; }
