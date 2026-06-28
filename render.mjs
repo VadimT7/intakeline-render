@@ -65,6 +65,10 @@ function siteTagline(url) {
 }
 const TAGLINE = siteTagline(AGENCY_URL);
 console.log("site tagline:", TAGLINE || "(none - generic hook)");
+// Crisp brand-gold SVG icons (Material paths) instead of emoji, which render inconsistently on the CI font.
+const ICON_PHONE = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e80e"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>';
+const ICON_MONEY = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e80e"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>';
+const ICON_PLAY = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e80e"><path d="M8 5v14l11-7z"/></svg>';
 const SEG = [
   { key: "s1", type: "site", url: AGENCY_URL,
     text: TAGLINE
@@ -72,11 +76,11 @@ const SEG = [
       : `${AGENCY} - hold up. You get injury firms the calls. But watch what happens to one of those hard-won calls.` },
   { key: "s2", type: "site", url: SITE_URL,
     text: `I called ${CLIENT_FIRM} after hours, posing as an injured lead. Voicemail. ${leak}. That case walked straight to a competitor.` },
-  { key: "fix", type: "slide", slide: { n: "", icon: "📞", title: "A 24/7 AI receptionist", sub: "" },
+  { key: "fix", type: "slide", slide: { n: "", icon: ICON_PHONE, title: "A 24/7 AI receptionist", sub: "" },
     text: `The fix? A twenty-four-seven A.I. receptionist. It answers every call, runs intake, and books the consult.` },
-  { key: "o1", type: "slide", slide: { n: "", icon: "💸", title: "Free. And you get paid.", sub: "" },
+  { key: "o1", type: "slide", slide: { n: "", icon: ICON_MONEY, title: "Free. And you get paid.", sub: "" },
     text: `It's free for two weeks, I build all of it, and you earn a commission every month - just for the intro.` },
-  { key: "cta", type: "slide", slide: { n: "", icon: "▶", title: "Hear it live", sub: "" },
+  { key: "cta", type: "slide", slide: { n: "", icon: ICON_PLAY, title: "Hear it live", sub: "" },
     text: `A live demo's on this page answering as ${CLIENT_FIRM}. Hear it - then grab fifteen minutes.` },
 ];
 const SCRIPT = SEG.map((s) => s.text).join(" ");
