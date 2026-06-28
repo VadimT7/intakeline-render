@@ -43,9 +43,28 @@ const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "i
 
 /* ---------- 1. script broken into timed segments ---------- */
 const leak = LEAK_NOTE.replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
+// Personalization: pull one real line from the agency's OWN site so the hook references them specifically. Graceful fallback.
+function siteTagline(url) {
+  if (!url) return "";
+  try {
+    const html = sh("curl", ["-sSL", "-m", "12", "-A", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)", url]).toString();
+    const pick = (re) => { const m = html.match(re); return m ? m[1] : ""; };
+    let t = pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)
+         || pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
+         || pick(/<h1[^>]*>([\s\S]*?)<\/h1>/i)
+         || pick(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    t = t.replace(/<[^>]+>/g, " ").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
+    t = t.split(/\s+[|–—:•]\s+|\s+\-\s+/)[0].trim();
+    return (t.length >= 12 && t.length <= 70) ? t : "";
+  } catch { return ""; }
+}
+const TAGLINE = siteTagline(AGENCY_URL);
+console.log("site tagline:", TAGLINE || "(none - generic hook)");
 const SEG = [
   { key: "s1", type: "site", url: AGENCY_URL,
-    text: `${AGENCY} - hold up, this matters. You're getting personal injury firms the phone calls, and you're good at it. But I just watched one of those calls vanish.` },
+    text: TAGLINE
+      ? `${AGENCY} - hold up. I was just on your site: "${TAGLINE}". You clearly know how to get injury firms the calls. But I just watched one of those calls vanish.`
+      : `${AGENCY} - hold up, this matters. You're getting personal injury firms the phone calls, and you're good at it. But I just watched one of those calls vanish.` },
   { key: "s2", type: "site", url: SITE_URL,
     text: `I called ${CLIENT_FIRM} after hours - like an injured lead ready to sign. It rang out. Voicemail. ${leak}. That case just walked straight to the next firm on Google.` },
   { key: "fix", type: "slide", slide: { n: "", icon: "📞", title: "A 24/7 AI receptionist", sub: "Answers every call. Runs the intake. Books the consult." },
