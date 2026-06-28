@@ -272,12 +272,12 @@ async function slideClip(slide, secs, outMp4) {
     await browser.close();
   } catch (e) { try { await browser?.close(); } catch {}; sh("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=0x0A0F1E:s=1080x1920", "-frames:v", "1", png]); }
   const frames = Math.round(secs * FPS);
-  // ken-burns: slides actually MOVE now (the old +0.0005 was imperceptible -> looked like static templates).
-  // Alternate the zoom magnitude per slide (gentle vs strong), adaptive to duration so it always lands the full push.
-  const zmax = (parseInt(slide.n, 10) % 2 === 0) ? 1.12 : 1.20;
-  const zinc = ((zmax - 1) / Math.max(1, frames)).toFixed(5);
+  // MrBeast entrance: hard zoom-PUNCH to 1.10 in ~0.22s, then slow drift to ~1.16. Snaps the eye on every cut.
+  const pf = Math.max(4, Math.round(0.22 * FPS));
+  const driftInc = (0.06 / Math.max(1, frames - pf)).toFixed(6);
+  const z = `if(lt(on,${pf}),1.0+0.10*on/${pf},min(1.10+${driftInc}*(on-${pf}),1.16))`;
   sh("ffmpeg", ["-y", "-i", png,
-    "-vf", `scale=1296:2304,zoompan=z='min(zoom+${zinc},${zmax})':d=${frames}:s=1080x1920:fps=${FPS},fade=t=in:st=0:d=0.3,format=yuv420p,setsar=1`,
+    "-vf", `scale=1296:2304,zoompan=z='${z}':d=${frames}:s=1080x1920:fps=${FPS},fade=t=in:st=0:d=0.18,format=yuv420p,setsar=1`,
     "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]);
   rmSync(png, { force: true });
 }
