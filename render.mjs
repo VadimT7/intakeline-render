@@ -98,9 +98,9 @@ const SEG = [
     text: `So here is my offer, give me fourteen days with ${CLIENT_FIRM} on a free Lead Lock trial, I do all the work, you take the credit and the commission, so honestly, are you gonna say no to a quick fifteen minute hand off?` },
   // the reveal: show our own site so they know who is actually reaching out
   { key: "outro", type: "site", url: INTAKELINE_URL,
-    text: `Oh, and that demo I sent you in the link, go play with it, it is built just for your firm.` },
+    text: `And here is the best part, I already did all the work, your client's new intake line is answering every single call right now, inside that link I sent you.` },
   { key: "end", type: "end",
-    text: `And come see who is reaching out, over at intakeline dot com.` },
+    text: `So give it a call, hear it for yourself, and if you love it even half as much as I do, just hit reply, and it is yours.` },
 ];
 const SCRIPT = SEG.filter((s) => s.text).map((s) => s.text).join(" ");
 let off = 0; for (const s of SEG) { if (!s.text) continue; s.charStart = off; off += s.text.length + 1; }
@@ -239,6 +239,19 @@ async function recordSite(url, secs, outMp4) {
     // AFTER load — so they never cover the personalized b-roll. Scoped to overlay-ish patterns to spare real content.
     await page.addStyleTag({ content: `[role="dialog"],[aria-modal="true"],[class*="newsletter" i],[class*="cookie" i],[class*="consent" i],[class*="gdpr" i],[id*="popup" i],[class*="popup" i],[class*="modal" i],[class*="intercom" i],[class*="drift" i],[class*="tawk" i],[class*="livechat" i],[class*="crisp" i],[id*="hubspot-messages"]{display:none !important;}` }).catch(() => {});
     await page.waitForTimeout(500);
+    // PRE-WARM: lazy sections/images below the hero only load when scrolled into view, so a single fast
+    // recorded scroll reveals half-painted/blank content. Step to the bottom first to fire every lazy load,
+    // force eager images, wait for them to settle, then return to top — so the recorded pass is fully painted.
+    await page.evaluate(async () => {
+      document.querySelectorAll('img[loading="lazy"]').forEach((i) => (i.loading = "eager"));
+      document.querySelectorAll("img[data-src]").forEach((i) => { if (!i.src && i.dataset.src) i.src = i.dataset.src; });
+      const target = Math.min(document.body.scrollHeight, window.innerHeight + 3000);
+      for (let y = 0; y <= target; y += Math.round(window.innerHeight * 0.5)) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 260)); }
+      window.scrollTo(0, 0);
+    });
+    try { await page.waitForLoadState("networkidle", { timeout: 6000 }); } catch {}
+    await page.evaluate(async () => { await Promise.all([...document.images].filter((i) => !i.complete).map((i) => new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 1500); }))); });
+    await page.waitForTimeout(800);
     await page.evaluate(async (ms) => {
       const max = Math.min(2600, Math.max(0, document.body.scrollHeight - window.innerHeight));
       const t0 = performance.now();
