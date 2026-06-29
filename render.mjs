@@ -70,21 +70,28 @@ const ICON_PHONE = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e
 const ICON_MONEY = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e80e"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>';
 const ICON_PLAY = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e80e"><path d="M8 5v14l11-7z"/></svg>';
 const SEG = [
+  // Beat 1 - Call-Out (agency homepage): name them + their client, genuine specific praise
   { key: "s1", type: "site", url: AGENCY_URL,
     text: TAGLINE
-      ? `${AGENCY} - hold up. I was just on your site: "${TAGLINE}". But watch what happens to one of those hard-won calls.`
-      : `${AGENCY} - hold up. You get injury firms the calls. But watch what happens to one of those hard-won calls.` },
-  { key: "s2", type: "site", url: SITE_URL,
-    text: `I called ${CLIENT_FIRM} after hours, posing as an injured lead. Voicemail. ${leak}. That case walked straight to a competitor.` },
-  { key: "fix", type: "slide", slide: { n: "", icon: ICON_PHONE, title: "A 24/7 AI receptionist", sub: "" },
-    text: `The fix? A twenty-four-seven A.I. receptionist. It answers every call, runs intake, and books the consult.` },
-  { key: "o1", type: "slide", slide: { n: "", icon: ICON_MONEY, title: "Free. And you get paid.", sub: "" },
-    text: `It's free for two weeks, I build all of it, and you earn a commission every month - just for the intro.` },
-  { key: "cta", type: "slide", slide: { n: "", icon: ICON_PLAY, title: "Hear it live", sub: "" },
-    text: `A live demo's on this page answering as ${CLIENT_FIRM}. Hear it - then grab fifteen minutes.` },
+      ? `I was just digging into the personal injury growth work coming out of ${AGENCY} - "${TAGLINE}". And honestly? The lead-gen you're running for ${CLIENT_FIRM} is world-class creative.`
+      : `I was just digging into the personal injury growth work coming out of ${AGENCY}. And honestly? The lead-gen you're running for ${CLIENT_FIRM} is world-class creative.` },
+  // Beat 2a - the stress test (client site)
+  { key: "s2a", type: "site", url: SITE_URL,
+    text: `But your traffic is so good, I had to stress-test the intake you feed it. So I called ${CLIENT_FIRM} at two A.M., as a fresh wreck lead. Listen.` },
+  // Beat 2b - the voicemail clip (spliced audio + voicemail card)
+  { key: "vm", type: "vm" },
+  // Beat 2c - the cost (client site)
+  { key: "s2b", type: "site", url: SITE_URL,
+    text: `That right there is a thirty-thousand-dollar case, hanging up - because a message-taker answered instead of a lawyer.` },
+  // Beat 3 - the Solution (IntakeLine logo)
+  { key: "logo", type: "logo",
+    text: `So I built an A.I. intake agent to plug that exact leak. It answers on the first ring and locks every lead onto the partner's calendar, around the clock. Your return on ad spend effectively doubles - and you never touch the Ad Manager.` },
+  // Beat 4 - the Grand Slam CTA (private demo) with the "are you opposed" close
+  { key: "cta", type: "demo",
+    text: `So here's the offer. A fourteen-day Lead-Lock trial, just for ${CLIENT_FIRM}. I do all the work - you take the credit, and the commission. Are you opposed to a fifteen-minute hand-off to switch it on?` },
 ];
-const SCRIPT = SEG.map((s) => s.text).join(" ");
-let off = 0; for (const s of SEG) { s.charStart = off; off += s.text.length + 1; }
+const SCRIPT = SEG.filter((s) => s.text).map((s) => s.text).join(" ");
+let off = 0; for (const s of SEG) { if (!s.text) continue; s.charStart = off; off += s.text.length + 1; }
 
 /* ---------- 2. narration (ElevenLabs, cloned voice) ---------- */
 function narrate() {
@@ -286,6 +293,97 @@ async function slideClip(slide, secs, outMp4) {
   rmSync(png, { force: true });
 }
 
+/* ---------- 5b. generic HTML card -> clip (same zoom-punch as slides) ---------- */
+async function htmlClip(html, secs, outMp4) {
+  const png = `h_${Math.random().toString(36).slice(2)}.png`;
+  let browser;
+  try {
+    browser = await chromium.launch({ args: ["--no-sandbox"] });
+    const page = await (await browser.newContext({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 })).newPage();
+    await page.setContent(html, { waitUntil: "load" });
+    try { await page.evaluate(() => document.fonts.ready); } catch {}
+    await page.waitForTimeout(450);
+    await page.screenshot({ path: png });
+    await browser.close();
+  } catch (e) { try { await browser?.close(); } catch {}; sh("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=0x0A0F1E:s=1080x1920", "-frames:v", "1", png]); }
+  const frames = Math.round(secs * FPS);
+  const pf = Math.max(4, Math.round(0.22 * FPS));
+  const driftInc = (0.06 / Math.max(1, frames - pf)).toFixed(6);
+  const z = `if(lt(on,${pf}),1.0+0.10*on/${pf},min(1.10+${driftInc}*(on-${pf}),1.16))`;
+  sh("ffmpeg", ["-y", "-i", png, "-vf", `scale=1296:2304,zoompan=z='${z}':d=${frames}:s=1080x1920:fps=${FPS},fade=t=in:st=0:d=0.18,format=yuv420p,setsar=1`, "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]);
+  rmSync(png, { force: true });
+}
+const PHONE_RED = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#ff5a6e"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>';
+const CARD_HEAD = `<!doctype html><html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Inter:wght@400;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:1080px;height:1920px;overflow:hidden;background:#070b16;position:relative;font-family:Inter,Arial,sans-serif}
+.grid{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px)}
+.wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 110px;text-align:center}
+</style></head><body>`;
+function voicemailHtml() {
+  const bars = [46, 96, 64, 120, 52, 104, 74, 130, 58, 92, 70, 110].map((h) => `<i style="height:${h}px"></i>`).join("");
+  return `${CARD_HEAD}
+<div class=grid style="background:radial-gradient(120% 76% at 50% 34%,#3a1422 0%,#1a0a13 46%,#070b16 80%)"></div>
+<div style="position:absolute;top:300px;left:0;right:0;text-align:center;font-family:Montserrat;font-weight:900;font-size:44px;letter-spacing:8px;color:#ff5a6e;opacity:.85">2:00 AM</div>
+<div class=wrap>
+<div style="filter:drop-shadow(0 10px 34px rgba(255,90,110,.35));margin-bottom:30px">${PHONE_RED}</div>
+<div style="font-family:Montserrat;font-weight:900;font-size:104px;letter-spacing:10px;color:#fff">VOICEMAIL</div>
+<div style="display:flex;gap:13px;align-items:center;height:140px;margin:54px 0">${bars}</div>
+<div style="font-family:Inter;font-weight:700;font-size:58px;color:#ff8a97;margin-top:4px">"...please call back tomorrow."</div>
+<div style="font-family:Inter;font-weight:600;font-size:46px;color:#9fb0c8;margin-top:30px">A $30,000 wreck lead, hanging up.</div>
+</div>
+<style>.wrap i{width:18px;background:linear-gradient(#ff5a6e,#ff8a97);border-radius:9px;display:inline-block}</style>
+</body></html>`;
+}
+function logoHtml() {
+  return `${CARD_HEAD}
+<div class=grid style="background:radial-gradient(120% 76% at 50% 30%,#1b3460 0%,#0d1830 44%,#070b16 78%)"></div>
+<div style="position:absolute;inset:0;background:radial-gradient(50% 22% at 50% 38%,rgba(249,232,14,.14),rgba(249,232,14,0) 70%)"></div>
+<div class=wrap>
+<svg width="600" height="150" viewBox="0 0 600 150" style="margin-bottom:30px"><path d="M0 75 H150 L182 75 L205 26 L232 124 L258 75 L300 75 L330 40 L360 110 L388 75 H600" fill="none" stroke="#f9e80e" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/></svg>
+<div style="font-family:Montserrat;font-weight:900;font-size:150px;letter-spacing:-3px;color:#fff;line-height:1">INTAKE<span style="color:#f9e80e">LINE</span></div>
+<div style="font-family:Inter;font-weight:600;font-size:52px;color:#a9bad2;margin-top:34px">Answers on the first ring. 24/7.</div>
+</div></body></html>`;
+}
+function demoHtml() {
+  return `${CARD_HEAD}
+<div class=grid style="background:radial-gradient(120% 76% at 50% 30%,#152a4d 0%,#0b1426 46%,#070b16 80%)"></div>
+<div class=wrap>
+<div style="width:840px;background:#0e1626;border:1px solid rgba(255,255,255,.10);border-radius:30px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.55)">
+<div style="display:flex;align-items:center;gap:12px;padding:26px 30px;background:#0a1120;border-bottom:1px solid rgba(255,255,255,.07)">
+<span style="width:20px;height:20px;border-radius:50%;background:#ff5f57;display:inline-block"></span>
+<span style="width:20px;height:20px;border-radius:50%;background:#febc2e;display:inline-block"></span>
+<span style="width:20px;height:20px;border-radius:50%;background:#28c840;display:inline-block"></span>
+<div style="margin-left:18px;flex:1;background:#070b16;border-radius:12px;padding:16px 26px;font-family:Inter;font-size:36px;color:#7d8ca6">intakeline.com/demo</div>
+</div>
+<div style="padding:90px 40px 100px;text-align:center">
+<div style="filter:drop-shadow(0 8px 30px rgba(249,232,14,.3))">${ICON_PLAY}</div>
+<div style="font-family:Inter;font-weight:600;font-size:46px;color:#a9bad2;margin-top:34px">Live line answering as</div>
+<div style="font-family:Montserrat;font-weight:900;font-size:74px;color:#fff;margin-top:10px;line-height:1.05">${CLIENT_FIRM}</div>
+<div style="font-family:Inter;font-weight:700;font-size:40px;color:#f9e80e;margin-top:40px;letter-spacing:1px">Your private 14-day Lead-Lock trial</div>
+</div></div></div></body></html>`;
+}
+/* ---------- 5c. voicemail: synth a phone-filtered greeting (stock voice) + splice into narration ---------- */
+function spliceVoicemail(splitT) {
+  const VM_VOICE = "21m00Tcm4TlvDq8ikWAM"; // EL stock "Rachel" - a generic office voice, NOT the cloned voice
+  const vmText = "Hi, you've reached our office. We're not available right now. Please call back tomorrow.";
+  try {
+    writeFileSync("vm_body.json", JSON.stringify({ text: vmText, model_id: "eleven_multilingual_v2", voice_settings: { stability: 0.6, similarity_boost: 0.7, style: 0, use_speaker_boost: false, speed: 1.05 } }));
+    const raw = sh("curl", ["-sS", "-f", "-X", "POST", `https://api.elevenlabs.io/v1/text-to-speech/${VM_VOICE}?output_format=mp3_44100_128`, "-H", `xi-api-key: ${EL_KEY}`, "-H", "Content-Type: application/json", "--data", "@vm_body.json"]);
+    writeFileSync("vm_raw.mp3", raw);
+    // telephone band + light compression so it sounds like a real voicemail down a phone line, capped at 3.0s
+    sh("ffmpeg", ["-y", "-i", "vm_raw.mp3", "-af", "highpass=f=320,lowpass=f=3200,acompressor=threshold=-18dB:ratio=3:attack=5:release=120,volume=2.0,afade=t=in:st=0:d=0.04,afade=t=out:st=2.78:d=0.22", "-t", "3.0", "-ar", "44100", "-ac", "2", "vm.mp3"]);
+    const vmDur = parseFloat(sh("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", "vm.mp3"]).toString().trim()) || 3.0;
+    sh("ffmpeg", ["-y", "-i", "narration.mp3", "-i", "vm.mp3", "-filter_complex",
+      `[0]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:${splitT.toFixed(3)},asetpts=N/SR/TB[a];[0]aformat=sample_rates=44100:channel_layouts=stereo,atrim=${splitT.toFixed(3)},asetpts=N/SR/TB[b];[1]aformat=sample_rates=44100:channel_layouts=stereo[v];[a][v][b]concat=n=3:v=0:a=1[o]`,
+      "-map", "[o]", "narration_spliced.mp3"]);
+    sh("ffmpeg", ["-y", "-i", "narration_spliced.mp3", "-c", "copy", "narration.mp3"]);
+    console.log("voicemail spliced at", splitT.toFixed(2), "s, vmDur", vmDur.toFixed(2));
+    return vmDur;
+  } catch (e) { console.log("voicemail splice FAILED:", String(e.message).slice(0, 140)); return 0; }
+}
+
 /* ---------- main ---------- */
 let al, dur;
 if (LOCAL) {
@@ -295,15 +393,26 @@ if (LOCAL) {
   sh("ffmpeg", ["-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", dur.toFixed(2), "-q:a", "9", "narration.mp3"]);
 } else {
   al = narrate();
+  // splice the 3s phone-voicemail in at the start of s2b, then shift every later char timestamp by its duration
+  const vmSeg = SEG.find((s) => s.type === "vm");
+  let splitT = 0, vmDur = 0;
+  if (vmSeg) {
+    const s2bIdx = SEG.findIndex((s) => s.key === "s2b");
+    const splitChar = SEG[s2bIdx].charStart;
+    splitT = al.starts[splitChar] || (al.ends[Math.max(0, splitChar - 1)] || 0);
+    vmDur = spliceVoicemail(splitT);
+    for (let i = splitChar; i < al.starts.length; i++) { al.starts[i] += vmDur; al.ends[i] += vmDur; }
+  }
   dur = (al.ends[al.ends.length - 1] || 30) + 0.5;
-  // segment start times from char alignment, made monotonic with sane fallbacks
+  // segment start times from char alignment, made monotonic with sane fallbacks (vm beat pinned to the splice point)
   let prev = 0;
   for (let i = 0; i < SEG.length; i++) {
-    let t = al.starts[SEG[i].charStart];
-    if (!(t > prev) || !(t < dur)) t = prev + 0.4;
+    let t;
+    if (SEG[i].type === "vm") t = splitT;
+    else { t = al.starts[SEG[i].charStart]; if (!(t > prev) || !(t < dur)) t = prev + 0.4; }
     SEG[i].start = t; prev = t;
   }
-  for (let i = 0; i < SEG.length; i++) SEG[i].dur = Math.max(1.4, (i < SEG.length - 1 ? SEG[i + 1].start : dur) - SEG[i].start);
+  for (let i = 0; i < SEG.length; i++) SEG[i].dur = Math.max(1.0, (i < SEG.length - 1 ? SEG[i + 1].start : dur) - SEG[i].start);
   buildAss(al, dur);
 }
 console.log("durations:", SEG.map((s) => `${s.key}:${s.dur.toFixed(1)}`).join(" "), "total", dur.toFixed(1));
@@ -314,12 +423,12 @@ for (let i = 0; i < SEG.length; i++) {
   const s = SEG[i]; const f = `scene${i}.mp4`;
   if (s.type === "site") {
     const ok = await recordSite(s.url, s.dur, f);
-    if (!ok) { console.log(`site ${s.key} record failed -> slide fallback`); await slideClip({ n: "", icon: "🌐", title: s.url ? s.key.toUpperCase() : AGENCY, sub: "" }, s.dur, f); }
+    if (!ok) { console.log(`site ${s.key} record failed -> card fallback`); await htmlClip(logoHtml(), s.dur, f); }
     else console.log(`recorded ${s.key} (${s.url})`);
-  } else {
-    await slideClip(s.slide, s.dur, f);
-    console.log(`slide ${s.key}`);
-  }
+  } else if (s.type === "vm") { await htmlClip(voicemailHtml(), s.dur, f); console.log("voicemail card"); }
+  else if (s.type === "logo") { await htmlClip(logoHtml(), s.dur, f); console.log("logo card"); }
+  else if (s.type === "demo") { await htmlClip(demoHtml(), s.dur, f); console.log("demo card"); }
+  else { await slideClip(s.slide, s.dur, f); console.log(`slide ${s.key}`); }
   scenes.push(f);
 }
 
