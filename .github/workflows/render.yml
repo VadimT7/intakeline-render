@@ -16,6 +16,7 @@ on:
       broll_only: { description: "1 = capture landscape site b-roll only", required: false, default: "0" }
       tts_model: { description: "ElevenLabs model_id override (e.g. eleven_turbo_v2_5)", required: false, default: "" }
       no_vs: { description: "1 = omit voice_settings, use the voice's saved defaults", required: false, default: "0" }
+      voice_id: { description: "ElevenLabs voice_id override (premade/natural voice)", required: false, default: "" }
   repository_dispatch:
     types: [render-audit-video]
 
@@ -60,6 +61,7 @@ jobs:
           BROLL_ONLY: ${{ github.event.client_payload.broll_only || github.event.inputs.broll_only }}
           TTS_MODEL: ${{ github.event.client_payload.tts_model || github.event.inputs.tts_model }}
           NO_VS: ${{ github.event.client_payload.no_vs || github.event.inputs.no_vs }}
+          VOICE_ID: ${{ github.event.client_payload.voice_id || github.event.inputs.voice_id }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}

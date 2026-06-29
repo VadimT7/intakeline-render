@@ -29,7 +29,7 @@ const FPS = 30;
 const LOCAL = env("LOCAL_TEST") === "1";
 
 const EL_KEY = env("ELEVEN_API_KEY");
-const EL_VOICE = env("ELEVEN_VOICE_ID");
+const EL_VOICE = process.env.VOICE_ID || env("ELEVEN_VOICE_ID");
 const R2_KEY = env("R2_ACCESS_KEY_ID");
 const R2_SECRET = env("R2_SECRET_ACCESS_KEY");
 const R2_ACCOUNT = env("R2_ACCOUNT_ID");
