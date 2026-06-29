@@ -73,22 +73,22 @@ const SEG = [
   // Beat 1 - Call-Out (agency homepage): flowing high-energy connective phrasing (council: no fragments/dashes -> no pauses)
   { key: "s1", type: "site", url: AGENCY_URL,
     text: TAGLINE
-      ? `Okay ${AGENCY}, real quick, I was just on your site and that whole "${TAGLINE}" angle is sharp, and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class.`
-      : `Okay ${AGENCY}, real quick, I was just on your site and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class, the traffic you're driving is seriously impressive.` },
+      ? `Okay ${AGENCY}, real quick, I was just on your site, "${TAGLINE}", love it, and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class.`
+      : `Okay ${AGENCY}, real quick, I was just on your site and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class.` },
   // Beat 2a - the stress test (client site)
   { key: "s2a", type: "site", url: SITE_URL,
-    text: `But here's the thing, your traffic is so good that I had to see where it actually lands, so I called ${CLIENT_FIRM} at two in the morning like a real injured lead ready to sign, and you have to hear what happened.` },
+    text: `But your traffic is so good I had to test where it lands, so I called ${CLIENT_FIRM} at two A.M. like a real injured lead, and listen to this.` },
   // Beat 2b - the voicemail clip (spliced audio + voicemail card)
   { key: "vm", type: "vm" },
   // Beat 2c - the cost (client site)
   { key: "s2b", type: "site", url: SITE_URL,
-    text: `So just like that, a thirty thousand dollar case walks straight out the door, all because a message taker picked up the phone instead of a real lawyer, and that is the exact leak nobody is telling you about.` },
+    text: `So just like that a thirty thousand dollar case walks out the door, because a message taker picked up instead of a real lawyer, and that is the leak nobody tells you about.` },
   // Beat 3 - the Solution (IntakeLine logo)
   { key: "logo", type: "logo",
-    text: `So here is what I went and built you, an A.I. intake agent that plugs that leak instantly, it picks up on the very first ring, it qualifies the lead, it books them right onto the calendar, and it basically doubles your return on ad spend completely hands off.` },
+    text: `So here is what I built you, an A.I. agent that plugs that leak instantly, it answers on the first ring, books the lead, and doubles your return on ad spend, totally hands off.` },
   // Beat 4 - the Grand Slam CTA (private demo) with the "are you opposed" close
   { key: "cta", type: "demo",
-    text: `So look, here is my offer, give me fourteen days with ${CLIENT_FIRM} on a totally free Lead Lock trial where I do all the work and you take all the credit and the commission, so honestly, are you really gonna say no to a quick fifteen minute hand off?` },
+    text: `So here is my offer, give me fourteen days with ${CLIENT_FIRM} on a free Lead Lock trial, I do all the work, you take the credit and the commission, so honestly, are you gonna say no to a quick fifteen minute hand off?` },
 ];
 const SCRIPT = SEG.filter((s) => s.text).map((s) => s.text).join(" ");
 let off = 0; for (const s of SEG) { if (!s.text) continue; s.charStart = off; off += s.text.length + 1; }
