@@ -235,6 +235,9 @@ async function recordSite(url, secs, outMp4) {
     }
     // Escape clears most marketing/newsletter modals the button sweep misses (e.g. Scorpion's $1k-credit popup)
     try { await page.keyboard.press("Escape"); } catch {}
+    // Persistent <style> kills chat widgets, cookie bars, and promo/newsletter modals — including ones injected
+    // AFTER load — so they never cover the personalized b-roll. Scoped to overlay-ish patterns to spare real content.
+    await page.addStyleTag({ content: `[role="dialog"],[aria-modal="true"],[class*="newsletter" i],[class*="cookie" i],[class*="consent" i],[class*="gdpr" i],[id*="popup" i],[class*="popup" i],[class*="modal" i],[class*="intercom" i],[class*="drift" i],[class*="tawk" i],[class*="livechat" i],[class*="crisp" i],[id*="hubspot-messages"]{display:none !important;}` }).catch(() => {});
     await page.waitForTimeout(500);
     await page.evaluate(async (ms) => {
       const max = Math.min(2600, Math.max(0, document.body.scrollHeight - window.innerHeight));
