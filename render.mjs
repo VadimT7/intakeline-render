@@ -100,6 +100,15 @@ function narrate() {
     const s = sh("curl", ["-sS", "-f", `https://api.elevenlabs.io/v1/voices/${EL_VOICE}/settings`, "-H", `xi-api-key: ${EL_KEY}`]).toString();
     console.log("native voice settings:", s);
   } catch { console.log("voice settings fetch failed"); }
+  // DIAGNOSTIC: which voice is the narration actually using, and what voices exist on the account
+  try {
+    const vn = JSON.parse(sh("curl", ["-sS", "-f", `https://api.elevenlabs.io/v1/voices/${EL_VOICE}`, "-H", `xi-api-key: ${EL_KEY}`]).toString());
+    console.log("NARRATION VOICE ->", EL_VOICE, "=", vn.name, "[" + vn.category + "]");
+  } catch { console.log("NARRATION VOICE id:", EL_VOICE, "(name lookup failed)"); }
+  try {
+    const lv = JSON.parse(sh("curl", ["-sS", "-f", "https://api.elevenlabs.io/v1/voices", "-H", `xi-api-key: ${EL_KEY}`]).toString());
+    console.log("ACCOUNT VOICES:", (lv.voices || []).map((v) => `${v.name}=${v.voice_id}[${v.category}]`).join(" | "));
+  } catch { console.log("voice list fetch failed"); }
   // Human tune. multilingual_v2 honors these directly; eleven_v3 (tried first) is the most human/natural model.
   // Kept ZZ Human 2's base (pace + stability); only STYLE raised 0.2 -> 0.5 to widen the tonal up/down (less monotone).
   const vs = { stability: 0.45, similarity_boost: 0.85, style: 0.5, use_speaker_boost: true, speed: 0.95 };
@@ -239,9 +248,9 @@ async function recordSite(url, secs, outMp4) {
     // normalize to a clean 1080x1920 clip of exactly `secs`, bottom scrim + gentle fade-in
     const args = existsSync("scrim.png")
       ? ["-y", "-i", `${dir}/${webm}`, "-i", "scrim.png", "-filter_complex",
-         `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},format=yuv420p[v0];[v0][1:v]overlay=0:0,fade=t=in:st=0:d=0.3,setsar=1[v]`,
+         `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},format=yuv420p[v0];[v0][1:v]overlay=0:0,setsar=1[v]`,
          "-map", "[v]", "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]
-      : ["-y", "-i", `${dir}/${webm}`, "-vf", `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},fade=t=in:st=0:d=0.3,format=yuv420p,setsar=1`, "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4];
+      : ["-y", "-i", `${dir}/${webm}`, "-vf", `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},format=yuv420p,setsar=1`, "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4];
     sh("ffmpeg", args);
     rmSync(dir, { recursive: true, force: true });
     return true;
@@ -288,7 +297,7 @@ async function slideClip(slide, secs, outMp4) {
   const driftInc = (0.06 / Math.max(1, frames - pf)).toFixed(6);
   const z = `if(lt(on,${pf}),1.0+0.10*on/${pf},min(1.10+${driftInc}*(on-${pf}),1.16))`;
   sh("ffmpeg", ["-y", "-i", png,
-    "-vf", `scale=1296:2304,zoompan=z='${z}':d=${frames}:s=1080x1920:fps=${FPS},fade=t=in:st=0:d=0.18,format=yuv420p,setsar=1`,
+    "-vf", `scale=1296:2304,zoompan=z='${z}':d=${frames}:s=1080x1920:fps=${FPS},format=yuv420p,setsar=1`,
     "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]);
   rmSync(png, { force: true });
 }
@@ -310,7 +319,7 @@ async function htmlClip(html, secs, outMp4) {
   const pf = Math.max(4, Math.round(0.22 * FPS));
   const driftInc = (0.06 / Math.max(1, frames - pf)).toFixed(6);
   const z = `if(lt(on,${pf}),1.0+0.10*on/${pf},min(1.10+${driftInc}*(on-${pf}),1.16))`;
-  sh("ffmpeg", ["-y", "-i", png, "-vf", `scale=1296:2304,zoompan=z='${z}':d=${frames}:s=1080x1920:fps=${FPS},fade=t=in:st=0:d=0.18,format=yuv420p,setsar=1`, "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]);
+  sh("ffmpeg", ["-y", "-i", png, "-vf", `scale=1296:2304,zoompan=z='${z}':d=${frames}:s=1080x1920:fps=${FPS},format=yuv420p,setsar=1`, "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]);
   rmSync(png, { force: true });
 }
 const PHONE_RED = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#ff5a6e"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>';
@@ -325,7 +334,11 @@ function voicemailHtml() {
   const bars = [46, 96, 64, 120, 52, 104, 74, 130, 58, 92, 70, 110].map((h) => `<i style="height:${h}px"></i>`).join("");
   return `${CARD_HEAD}
 <div class=grid style="background:radial-gradient(120% 76% at 50% 34%,#3a1422 0%,#1a0a13 46%,#070b16 80%)"></div>
-<div style="position:absolute;top:300px;left:0;right:0;text-align:center;font-family:Montserrat;font-weight:900;font-size:44px;letter-spacing:8px;color:#ff5a6e;opacity:.85">2:00 AM</div>
+<div style="position:absolute;top:150px;left:80px;display:flex;align-items:center;gap:18px;background:rgba(255,40,40,.16);border:3px solid #ff3b3b;border-radius:999px;padding:16px 34px 16px 28px;box-shadow:0 0 40px rgba(255,40,40,.35)">
+<span style="width:28px;height:28px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 26px #ff3b3b"></span>
+<span style="font-family:Montserrat;font-weight:900;font-size:46px;letter-spacing:6px;color:#fff">LIVE</span></div>
+<div style="position:absolute;top:158px;right:80px;font-family:Montserrat;font-weight:800;font-size:42px;letter-spacing:4px;color:#ff8a97">REC 0:03</div>
+<div style="position:absolute;top:300px;left:0;right:0;text-align:center;font-family:Montserrat;font-weight:900;font-size:44px;letter-spacing:8px;color:#ff5a6e;opacity:.85;margin-top:80px">2:00 AM</div>
 <div class=wrap>
 <div style="filter:drop-shadow(0 10px 34px rgba(255,90,110,.35));margin-bottom:30px">${PHONE_RED}</div>
 <div style="font-family:Montserrat;font-weight:900;font-size:104px;letter-spacing:10px;color:#fff">VOICEMAIL</div>
@@ -441,12 +454,13 @@ if (scenes.length >= 2) {
     const inputs = []; for (const fl of scenes) inputs.push("-i", fl);
     let fc = "", last = "0:v";
     for (let m = 1; m < scenes.length; m++) {
-      const out = (m === scenes.length - 1) ? "vout" : `x${m}`;
+      const out = `x${m}`;
       const trans = (m % 2 === 1) ? "slideleft" : "slideright";
       fc += `[${last}][${m}:v]xfade=transition=${trans}:duration=${XF}:offset=${pre[m].toFixed(3)}[${out}];`;
       last = out;
     }
-    sh("ffmpeg", ["-y", ...inputs, "-filter_complex", fc.replace(/;$/, ""), "-map", "[vout]", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(FPS), "body.mp4"]);
+    fc += `[${last}]fade=t=in:st=0:d=0.3[vout]`;
+    sh("ffmpeg", ["-y", ...inputs, "-filter_complex", fc, "-map", "[vout]", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(FPS), "body.mp4"]);
     assembled = true; console.log("assembled with whip-cut transitions");
   } catch (e) { console.log("whip-cut xfade failed -> hard-cut concat:", String(e.message).slice(0, 100)); }
 }
