@@ -133,14 +133,11 @@ function narrate() {
     }
     throw new Error("all source formats failed for " + model);
   };
-  // v2 is the known-good base (the take you preferred). v3 is opt-in via TRY_V3=1 for separate experiments.
+  // v2 (eleven_multilingual_v2) is the faithful clone - it preserves Vadim's voice. v3 drifts; opt in only via TRY_V3=1.
   let d;
   if (process.env.TRY_V3 === "1") {
-    try { d = tts("eleven_v3", vs); console.log("NARRATION MODEL: eleven_v3 (most human)"); }
-    catch (e1) {
-      try { d = tts("eleven_v3", null); console.log("NARRATION MODEL: eleven_v3 (defaults)"); }
-      catch (e2) { console.log("eleven_v3 unavailable (" + String(e2.message).slice(0, 80) + "); using v2"); d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2"); }
-    }
+    try { d = tts("eleven_v3", vs); console.log("NARRATION MODEL: eleven_v3"); }
+    catch (e2) { console.log("eleven_v3 unavailable (" + String(e2.message).slice(0, 80) + "); using v2"); d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2"); }
   } else {
     d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2");
   }
