@@ -401,6 +401,31 @@ function spliceVoicemail(splitT) {
 }
 
 /* ---------- main ---------- */
+// BROLL_ONLY: produce clean landscape (1920x1080) scroll recordings of the agency + client sites for the Palmier edit. Headless, reusable in automation.
+if (process.env.BROLL_ONLY === "1") {
+  async function brollLandscape(url, secs, out) {
+    if (!url) return false;
+    const dir = `bl_${Math.random().toString(36).slice(2)}`; let browser;
+    try {
+      browser = await chromium.launch({ args: ["--no-sandbox"] });
+      const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1, recordVideo: { dir, size: { width: 1920, height: 1080 } }, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" });
+      const page = await ctx.newPage();
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+      await page.waitForTimeout(1700);
+      for (const re of [/accept/i, /agree/i, /got it/i, /allow all/i, /reject/i, /^ok$/i]) { try { const b = page.getByRole("button", { name: re }).first(); if (await b.isVisible({ timeout: 600 })) await b.click({ timeout: 600 }); } catch {} }
+      await page.waitForTimeout(500);
+      await page.evaluate(async (ms) => { const max = Math.max(0, document.body.scrollHeight - window.innerHeight); const t0 = performance.now(); await new Promise((res) => { function step(t){ const k=Math.min(1,(t-t0)/ms); const e=k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2; window.scrollTo(0, e*Math.min(max, 2600)); if(k<1)requestAnimationFrame(step); else res(); } requestAnimationFrame(step); }); }, Math.max(3000, secs*1000));
+      await page.waitForTimeout(300); await ctx.close(); await browser.close();
+      const webm = readdirSync(dir).find((f) => f.endsWith(".webm")); if (!webm) return false;
+      sh("ffmpeg", ["-y", "-i", `${dir}/${webm}`, "-vf", `scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS},format=yuv420p,setsar=1`, "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", out]);
+      rmSync(dir, { recursive: true, force: true }); return true;
+    } catch (e) { try { await browser?.close(); } catch {} console.log("broll fail", url, String(e.message).slice(0,120)); return false; }
+  }
+  console.log("BROLL agency:", await brollLandscape(AGENCY_URL, 14, "broll_agency.mp4"));
+  console.log("BROLL client:", await brollLandscape(SITE_URL, 16, "broll_client.mp4"));
+  console.log("BROLL_ONLY done");
+  process.exit(0);
+}
 let al, dur;
 if (LOCAL) {
   // visual dry-run: fixed durations, silent track, no captions, no upload

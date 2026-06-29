@@ -13,6 +13,7 @@ on:
       page_url: { description: audit page url, required: false }
       skip_callback: { description: "1 = don't notify n8n (for testing)", required: false, default: "0" }
       narrate_only: { description: "1 = mint voice-4 audio + timings only, skip slideshow", required: false, default: "0" }
+      broll_only: { description: "1 = capture landscape site b-roll only", required: false, default: "0" }
   repository_dispatch:
     types: [render-audit-video]
 
@@ -54,6 +55,7 @@ jobs:
           PAGE_URL: ${{ github.event.client_payload.page_url || github.event.inputs.page_url }}
           SKIP_CALLBACK: ${{ github.event.client_payload.skip_callback || github.event.inputs.skip_callback }}
           NARRATE_ONLY: ${{ github.event.client_payload.narrate_only || github.event.inputs.narrate_only }}
+          BROLL_ONLY: ${{ github.event.client_payload.broll_only || github.event.inputs.broll_only }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
@@ -72,5 +74,7 @@ jobs:
             out.mp4
             narration.mp3
             narr_meta.json
+            broll_agency.mp4
+            broll_client.mp4
           if-no-files-found: ignore
           retention-days: 7
