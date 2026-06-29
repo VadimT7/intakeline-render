@@ -418,23 +418,42 @@ if (LOCAL) {
 console.log("durations:", SEG.map((s) => `${s.key}:${s.dur.toFixed(1)}`).join(" "), "total", dur.toFixed(1));
 
 await makeScrim("scrim.png");
+const XF = 0.18; // whip-cut transition length; scenes get a +XF tail so the xfade overlap keeps audio/caption sync
 const scenes = [];
 for (let i = 0; i < SEG.length; i++) {
-  const s = SEG[i]; const f = `scene${i}.mp4`;
+  const s = SEG[i]; const f = `scene${i}.mp4`; const sd = s.dur + XF;
   if (s.type === "site") {
-    const ok = await recordSite(s.url, s.dur, f);
-    if (!ok) { console.log(`site ${s.key} record failed -> card fallback`); await htmlClip(logoHtml(), s.dur, f); }
+    const ok = await recordSite(s.url, sd, f);
+    if (!ok) { console.log(`site ${s.key} record failed -> card fallback`); await htmlClip(logoHtml(), sd, f); }
     else console.log(`recorded ${s.key} (${s.url})`);
-  } else if (s.type === "vm") { await htmlClip(voicemailHtml(), s.dur, f); console.log("voicemail card"); }
-  else if (s.type === "logo") { await htmlClip(logoHtml(), s.dur, f); console.log("logo card"); }
-  else if (s.type === "demo") { await htmlClip(demoHtml(), s.dur, f); console.log("demo card"); }
-  else { await slideClip(s.slide, s.dur, f); console.log(`slide ${s.key}`); }
+  } else if (s.type === "vm") { await htmlClip(voicemailHtml(), sd, f); console.log("voicemail card"); }
+  else if (s.type === "logo") { await htmlClip(logoHtml(), sd, f); console.log("logo card"); }
+  else if (s.type === "demo") { await htmlClip(demoHtml(), sd, f); console.log("demo card"); }
+  else { await slideClip(s.slide, sd, f); console.log(`slide ${s.key}`); }
   scenes.push(f);
 }
 
-// concat all scene clips
-writeFileSync("list.txt", scenes.map((f) => `file '${f}'`).join("\n"));
-sh("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", "list.txt", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(FPS), "body.mp4"]);
+// assemble with whip-cut (xfade slide) transitions; fall back to hard-cut concat on any error so a render never fails
+let assembled = false;
+if (scenes.length >= 2) {
+  try {
+    const pre = []; let acc = 0; for (let i = 0; i < SEG.length; i++) { pre.push(acc); acc += SEG[i].dur; }
+    const inputs = []; for (const fl of scenes) inputs.push("-i", fl);
+    let fc = "", last = "0:v";
+    for (let m = 1; m < scenes.length; m++) {
+      const out = (m === scenes.length - 1) ? "vout" : `x${m}`;
+      const trans = (m % 2 === 1) ? "slideleft" : "slideright";
+      fc += `[${last}][${m}:v]xfade=transition=${trans}:duration=${XF}:offset=${pre[m].toFixed(3)}[${out}];`;
+      last = out;
+    }
+    sh("ffmpeg", ["-y", ...inputs, "-filter_complex", fc.replace(/;$/, ""), "-map", "[vout]", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(FPS), "body.mp4"]);
+    assembled = true; console.log("assembled with whip-cut transitions");
+  } catch (e) { console.log("whip-cut xfade failed -> hard-cut concat:", String(e.message).slice(0, 100)); }
+}
+if (!assembled) {
+  writeFileSync("list.txt", scenes.map((f) => `file '${f}'`).join("\n"));
+  sh("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", "list.txt", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(FPS), "body.mp4"]);
+}
 
 // burn captions (skip locally — no libass) then mux narration
 const haveCaps = !LOCAL && existsSync("captions.ass");
