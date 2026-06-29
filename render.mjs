@@ -73,22 +73,22 @@ const SEG = [
   // Beat 1 - Call-Out (agency homepage): name them + their client, genuine specific praise
   { key: "s1", type: "site", url: AGENCY_URL,
     text: TAGLINE
-      ? `I was digging into ${AGENCY}'s personal injury work - "${TAGLINE}". The lead-gen you run for ${CLIENT_FIRM}? World-class.`
-      : `I was digging into ${AGENCY}'s personal injury work. The lead-gen you run for ${CLIENT_FIRM}? Honestly, world-class.` },
+      ? `I was on ${AGENCY}'s site - "${TAGLINE}". Your lead-gen for ${CLIENT_FIRM}? World-class.`
+      : `I was on ${AGENCY}'s site. Your lead-gen for ${CLIENT_FIRM}? Honestly, world-class.` },
   // Beat 2a - the stress test (client site)
   { key: "s2a", type: "site", url: SITE_URL,
-    text: `But your traffic's so good I stress-tested the intake. I called ${CLIENT_FIRM} at two A.M. as a wreck lead. Listen.` },
+    text: `Your traffic's so good, I stress-tested the intake. Called ${CLIENT_FIRM} at two A.M. as a wreck lead. Listen.` },
   // Beat 2b - the voicemail clip (spliced audio + voicemail card)
   { key: "vm", type: "vm" },
   // Beat 2c - the cost (client site)
   { key: "s2b", type: "site", url: SITE_URL,
-    text: `That's a thirty-thousand-dollar case, hanging up - because a message-taker answered, not a lawyer.` },
+    text: `A thirty-thousand-dollar case - gone. Because a message-taker answered, not a lawyer.` },
   // Beat 3 - the Solution (IntakeLine logo)
   { key: "logo", type: "logo",
-    text: `So I built an A.I. intake agent that plugs the leak. It answers on the first ring, books the lead onto the partner's calendar, and effectively doubles your ROAS. Totally hands-off.` },
+    text: `So I built an A.I. agent that plugs the leak. It answers on the first ring, books the lead, and doubles your ROAS. Hands-off.` },
   // Beat 4 - the Grand Slam CTA (private demo) with the "are you opposed" close
   { key: "cta", type: "demo",
-    text: `Here's the offer: a fourteen-day Lead-Lock trial, just for ${CLIENT_FIRM}. I do the work - you take the credit, and the commission. Are you opposed to a fifteen-minute hand-off?` },
+    text: `My offer: a fourteen-day Lead-Lock trial for ${CLIENT_FIRM}. I do the work, you take the credit and commission. Are you opposed to a fifteen-minute hand-off?` },
 ];
 const SCRIPT = SEG.filter((s) => s.text).map((s) => s.text).join(" ");
 let off = 0; for (const s of SEG) { if (!s.text) continue; s.charStart = off; off += s.text.length + 1; }
