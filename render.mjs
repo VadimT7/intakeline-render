@@ -70,25 +70,25 @@ const ICON_PHONE = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e
 const ICON_MONEY = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e80e"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>';
 const ICON_PLAY = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e80e"><path d="M8 5v14l11-7z"/></svg>';
 const SEG = [
-  // Beat 1 - Call-Out (agency homepage): name them + their client, genuine specific praise
+  // Beat 1 - Call-Out (agency homepage): flowing high-energy connective phrasing (council: no fragments/dashes -> no pauses)
   { key: "s1", type: "site", url: AGENCY_URL,
     text: TAGLINE
-      ? `I was on ${AGENCY}'s site - "${TAGLINE}". Your lead-gen for ${CLIENT_FIRM}? World-class.`
-      : `I was on ${AGENCY}'s site. Your lead-gen for ${CLIENT_FIRM}? Honestly, world-class.` },
+      ? `Okay ${AGENCY}, real quick, I was just on your site and that whole "${TAGLINE}" angle is sharp, and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class.`
+      : `Okay ${AGENCY}, real quick, I was just on your site and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class, the traffic you're driving is seriously impressive.` },
   // Beat 2a - the stress test (client site)
   { key: "s2a", type: "site", url: SITE_URL,
-    text: `Your traffic's so good, I stress-tested the intake. Called ${CLIENT_FIRM} at two A.M. as a wreck lead. Listen.` },
+    text: `But here's the thing, your traffic is so good that I had to see where it actually lands, so I called ${CLIENT_FIRM} at two in the morning like a real injured lead ready to sign, and you have to hear what happened.` },
   // Beat 2b - the voicemail clip (spliced audio + voicemail card)
   { key: "vm", type: "vm" },
   // Beat 2c - the cost (client site)
   { key: "s2b", type: "site", url: SITE_URL,
-    text: `A thirty-thousand-dollar case - gone. Because a message-taker answered, not a lawyer.` },
+    text: `So just like that, a thirty thousand dollar case walks straight out the door, all because a message taker picked up the phone instead of a real lawyer, and that is the exact leak nobody is telling you about.` },
   // Beat 3 - the Solution (IntakeLine logo)
   { key: "logo", type: "logo",
-    text: `So I built an A.I. agent that plugs the leak. It answers on the first ring, books the lead, and doubles your return on ad spend. Hands-off.` },
+    text: `So here is what I went and built you, an A.I. intake agent that plugs that leak instantly, it picks up on the very first ring, it qualifies the lead, it books them right onto the calendar, and it basically doubles your return on ad spend completely hands off.` },
   // Beat 4 - the Grand Slam CTA (private demo) with the "are you opposed" close
   { key: "cta", type: "demo",
-    text: `My offer: a fourteen-day Lead-Lock trial for ${CLIENT_FIRM}. I do the work, you take the credit and commission. Are you opposed to a fifteen-minute hand-off?` },
+    text: `So look, here is my offer, give me fourteen days with ${CLIENT_FIRM} on a totally free Lead Lock trial where I do all the work and you take all the credit and the commission, so honestly, are you really gonna say no to a quick fifteen minute hand off?` },
 ];
 const SCRIPT = SEG.filter((s) => s.text).map((s) => s.text).join(" ");
 let off = 0; for (const s of SEG) { if (!s.text) continue; s.charStart = off; off += s.text.length + 1; }
@@ -113,10 +113,10 @@ function narrate() {
   } catch { console.log("voice list fetch failed"); }
   // Use the voice's OWN natural saved settings, but allow a SPEED override (natural premade voices pace slow; this controls length without changing tone).
   // Jack John dial: a touch more expressive (style) + a touch faster (speed); env-tunable (SPEED/STYLE/STAB).
-  const SPEED = process.env.SPEED ? parseFloat(process.env.SPEED) : 1.1;
-  const STYLE = process.env.STYLE ? parseFloat(process.env.STYLE) : 0.35;
-  const STAB = process.env.STAB ? parseFloat(process.env.STAB) : 0.4;
-  const vs = { stability: STAB, similarity_boost: 0.78, style: STYLE, use_speaker_boost: true, speed: SPEED };
+  const SPEED = process.env.SPEED ? parseFloat(process.env.SPEED) : 1.13;
+  const STYLE = process.env.STYLE ? parseFloat(process.env.STYLE) : 0.5;
+  const STAB = process.env.STAB ? parseFloat(process.env.STAB) : 0.35;
+  const vs = { stability: STAB, similarity_boost: 0.8, style: STYLE, use_speaker_boost: true, speed: SPEED };
   console.log("NARRATION SETTINGS:", JSON.stringify(vs));
   const tts = (model, settings) => {
     const payload = { text: SCRIPT, model_id: model };
