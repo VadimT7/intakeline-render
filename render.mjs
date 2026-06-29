@@ -476,6 +476,14 @@ try {
   console.log(readFileSync("sheet.jpg").toString("base64"));
   console.log("SHEET_B64_END");
 } catch (e) { console.log("sheet fail:", e.message); }
+// transition proof: 6 consecutive frames across the first whip-cut (agency -> client) so the slide motion can be eyeballed
+try {
+  const t0 = Math.max(0.1, (SEG[0]?.dur || 6) - 0.07);
+  sh("ffmpeg", ["-y", "-ss", t0.toFixed(2), "-i", "out.mp4", "-vf", "fps=30,scale=150:266,tile=6x1", "-frames:v", "1", "trans.jpg"]);
+  console.log("TRANS_B64_START");
+  console.log(readFileSync("trans.jpg").toString("base64"));
+  console.log("TRANS_B64_END");
+} catch (e) { console.log("trans fail:", e.message); }
 
 if (LOCAL) { console.log("LOCAL dry-run done (no captions, no upload)"); process.exit(0); }
 
