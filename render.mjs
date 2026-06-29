@@ -85,7 +85,7 @@ const SEG = [
     text: `A thirty-thousand-dollar case - gone. Because a message-taker answered, not a lawyer.` },
   // Beat 3 - the Solution (IntakeLine logo)
   { key: "logo", type: "logo",
-    text: `So I built an A.I. agent that plugs the leak. It answers on the first ring, books the lead, and doubles your ROAS. Hands-off.` },
+    text: `So I built an A.I. agent that plugs the leak. It answers on the first ring, books the lead, and doubles your return on ad spend. Hands-off.` },
   // Beat 4 - the Grand Slam CTA (private demo) with the "are you opposed" close
   { key: "cta", type: "demo",
     text: `My offer: a fourteen-day Lead-Lock trial for ${CLIENT_FIRM}. I do the work, you take the credit and commission. Are you opposed to a fifteen-minute hand-off?` },
@@ -112,10 +112,11 @@ function narrate() {
     console.log("ACCOUNT VOICES:", (lv.voices || []).map((v) => `${v.name}=${v.voice_id}[${v.category}]`).join(" | "));
   } catch { console.log("voice list fetch failed"); }
   // Use the voice's OWN natural saved settings, but allow a SPEED override (natural premade voices pace slow; this controls length without changing tone).
-  const SPEED = process.env.SPEED ? parseFloat(process.env.SPEED) : null;
-  const vs = (native && typeof native.stability === "number")
-    ? { stability: native.stability, similarity_boost: native.similarity_boost, style: native.style, use_speaker_boost: native.use_speaker_boost ?? true, speed: SPEED ?? native.speed ?? 1.0 }
-    : { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true, speed: SPEED ?? 1.0 };
+  // Jack John dial: a touch more expressive (style) + a touch faster (speed); env-tunable (SPEED/STYLE/STAB).
+  const SPEED = process.env.SPEED ? parseFloat(process.env.SPEED) : 1.1;
+  const STYLE = process.env.STYLE ? parseFloat(process.env.STYLE) : 0.35;
+  const STAB = process.env.STAB ? parseFloat(process.env.STAB) : 0.4;
+  const vs = { stability: STAB, similarity_boost: 0.78, style: STYLE, use_speaker_boost: true, speed: SPEED };
   console.log("NARRATION SETTINGS:", JSON.stringify(vs));
   const tts = (model, settings) => {
     const payload = { text: SCRIPT, model_id: model };
