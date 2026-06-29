@@ -111,8 +111,11 @@ function narrate() {
     const lv = JSON.parse(sh("curl", ["-sS", "-f", "https://api.elevenlabs.io/v1/voices", "-H", `xi-api-key: ${EL_KEY}`]).toString());
     console.log("ACCOUNT VOICES:", (lv.voices || []).map((v) => `${v.name}=${v.voice_id}[${v.category}]`).join(" | "));
   } catch { console.log("voice list fetch failed"); }
-  // Dial: stability 1.0, style 0, similarity 0.50, speed 1.10.
-  const vs = { stability: 1.0, similarity_boost: 0.50, style: 0.0, use_speaker_boost: true, speed: 1.10 };
+  // Use the voice's OWN natural saved settings, but allow a SPEED override (natural premade voices pace slow; this controls length without changing tone).
+  const SPEED = process.env.SPEED ? parseFloat(process.env.SPEED) : null;
+  const vs = (native && typeof native.stability === "number")
+    ? { stability: native.stability, similarity_boost: native.similarity_boost, style: native.style, use_speaker_boost: native.use_speaker_boost ?? true, speed: SPEED ?? native.speed ?? 1.0 }
+    : { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true, speed: SPEED ?? 1.0 };
   console.log("NARRATION SETTINGS:", JSON.stringify(vs));
   const tts = (model, settings) => {
     const payload = { text: SCRIPT, model_id: model };
