@@ -133,14 +133,13 @@ function narrate() {
     }
     throw new Error("all source formats failed for " + model);
   };
-  // v2 (eleven_multilingual_v2) is the faithful clone - it preserves Vadim's voice. v3 drifts; opt in only via TRY_V3=1.
+  // Model + settings env-overridable so we can REPLICATE exactly what the ElevenLabs UI does (the council's verdict: the UI uses a different model/settings than our API call).
+  // NO_VS=1 omits voice_settings entirely -> the voice's saved defaults apply, same as the UI playground.
+  const MODEL = process.env.TTS_MODEL || "eleven_multilingual_v2";
+  const settings = process.env.NO_VS === "1" ? null : vs;
   let d;
-  if (process.env.TRY_V3 === "1") {
-    try { d = tts("eleven_v3", vs); console.log("NARRATION MODEL: eleven_v3"); }
-    catch (e2) { console.log("eleven_v3 unavailable (" + String(e2.message).slice(0, 80) + "); using v2"); d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2"); }
-  } else {
-    d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2");
-  }
+  try { d = tts(MODEL, settings); console.log("NARRATION MODEL:", MODEL, "| settings:", settings ? JSON.stringify(settings) : "SAVED-DEFAULTS (no override)"); }
+  catch (e) { console.log("model " + MODEL + " failed (" + String(e.message).slice(0, 80) + "); fallback multilingual_v2 + explicit"); d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2"); }
   writeFileSync("narration.mp3", Buffer.from(d.audio_base64, "base64"));
   const al = d.alignment || d.normalized_alignment;
   return { chars: al.characters, starts: al.character_start_times_seconds, ends: al.character_end_times_seconds };
