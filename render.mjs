@@ -73,22 +73,22 @@ const SEG = [
   // Beat 1 - Call-Out (agency homepage): name them + their client, genuine specific praise
   { key: "s1", type: "site", url: AGENCY_URL,
     text: TAGLINE
-      ? `I was just digging into the personal injury growth work coming out of ${AGENCY} - "${TAGLINE}". And honestly? The lead-gen you're running for ${CLIENT_FIRM} is world-class creative.`
-      : `I was just digging into the personal injury growth work coming out of ${AGENCY}. And honestly? The lead-gen you're running for ${CLIENT_FIRM} is world-class creative.` },
+      ? `I was digging into ${AGENCY}'s personal injury work - "${TAGLINE}". The lead-gen you run for ${CLIENT_FIRM}? World-class.`
+      : `I was digging into ${AGENCY}'s personal injury work. The lead-gen you run for ${CLIENT_FIRM}? Honestly, world-class.` },
   // Beat 2a - the stress test (client site)
   { key: "s2a", type: "site", url: SITE_URL,
-    text: `But your traffic is so good, I had to stress-test the intake you feed it. So I called ${CLIENT_FIRM} at two A.M., as a fresh wreck lead. Listen.` },
+    text: `But your traffic's so good I stress-tested the intake. I called ${CLIENT_FIRM} at two A.M. as a wreck lead. Listen.` },
   // Beat 2b - the voicemail clip (spliced audio + voicemail card)
   { key: "vm", type: "vm" },
   // Beat 2c - the cost (client site)
   { key: "s2b", type: "site", url: SITE_URL,
-    text: `That right there is a thirty-thousand-dollar case, hanging up - because a message-taker answered instead of a lawyer.` },
+    text: `That's a thirty-thousand-dollar case, hanging up - because a message-taker answered, not a lawyer.` },
   // Beat 3 - the Solution (IntakeLine logo)
   { key: "logo", type: "logo",
-    text: `So I built an A.I. intake agent to plug that exact leak. It answers on the first ring and locks every lead onto the partner's calendar, around the clock. Your return on ad spend effectively doubles - and you never touch the Ad Manager.` },
+    text: `So I built an A.I. intake agent that plugs the leak. It answers on the first ring, books the lead onto the partner's calendar, and effectively doubles your ROAS. Totally hands-off.` },
   // Beat 4 - the Grand Slam CTA (private demo) with the "are you opposed" close
   { key: "cta", type: "demo",
-    text: `So here's the offer. A fourteen-day Lead-Lock trial, just for ${CLIENT_FIRM}. I do all the work - you take the credit, and the commission. Are you opposed to a fifteen-minute hand-off to switch it on?` },
+    text: `Here's the offer: a fourteen-day Lead-Lock trial, just for ${CLIENT_FIRM}. I do the work - you take the credit, and the commission. Are you opposed to a fifteen-minute hand-off?` },
 ];
 const SCRIPT = SEG.filter((s) => s.text).map((s) => s.text).join(" ");
 let off = 0; for (const s of SEG) { if (!s.text) continue; s.charStart = off; off += s.text.length + 1; }
@@ -161,7 +161,7 @@ function buildAss(al, dur) {
   }
   if (p.length) phrases.push(p);
   const esc = (s) => s.replace(/[{}]/g, "").replace(/\\/g, "");
-  const keys = [/voicemail/i, /competitor/i, /\bfree\b/i, /two weeks/i, /every call/i, /commission/i, /every month/i, /fifteen minutes/i, new RegExp(CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")];
+  const keys = [/world-class/i, /thirty-thousand/i, /first ring/i, /\bdoubles?\b/i, /\bROAS\b/i, /commission/i, /\bcredit\b/i, /Lead-Lock/i, /fifteen-minute/i, /opposed/i, /wreck lead/i, new RegExp(CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")];
   const dialog = phrases.map((ph) => {
     const s = ph[0].s, e = ph[ph.length - 1].e + 0.06;
     let text = esc(ph.map((x) => x.w).join(" ")).replace(/\bA I\b/g, "AI");
