@@ -111,9 +111,10 @@ function narrate() {
     const lv = JSON.parse(sh("curl", ["-sS", "-f", "https://api.elevenlabs.io/v1/voices", "-H", `xi-api-key: ${EL_KEY}`]).toString());
     console.log("ACCOUNT VOICES:", (lv.voices || []).map((v) => `${v.name}=${v.voice_id}[${v.category}]`).join(" | "));
   } catch { console.log("voice list fetch failed"); }
-  // ZZ VOICE 4 - the take Vadim approved: expressive (style 0.5) + natural pace (speed 0.95). LOCKED.
-  // Do NOT drift to "native"/speed 1.0 - that timbre was rejected. The native fetch above stays for diagnostics only.
-  const vs = { stability: 0.45, similarity_boost: 0.85, style: 0.5, use_speaker_boost: true, speed: 0.95 };
+  // EXACTLY VADIM'S VOICE: the voice's OWN saved ElevenLabs settings, verbatim - zero overrides (no style boost, no speed up/down). "Exactly me, no up/downscaling."
+  const vs = (native && typeof native.stability === "number")
+    ? { stability: native.stability, similarity_boost: native.similarity_boost, style: native.style, use_speaker_boost: native.use_speaker_boost, speed: native.speed }
+    : null;
   console.log("NARRATION SETTINGS:", JSON.stringify(vs));
   const tts = (model, settings) => {
     const payload = { text: SCRIPT, model_id: model };
