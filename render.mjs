@@ -111,8 +111,8 @@ function narrate() {
     const lv = JSON.parse(sh("curl", ["-sS", "-f", "https://api.elevenlabs.io/v1/voices", "-H", `xi-api-key: ${EL_KEY}`]).toString());
     console.log("ACCOUNT VOICES:", (lv.voices || []).map((v) => `${v.name}=${v.voice_id}[${v.category}]`).join(" | "));
   } catch { console.log("voice list fetch failed"); }
-  // MOST-FAITHFUL VADIM: natural stability/style (0.5/0), similarity 0.9 (1.0 re-injects source artifacts), normal speed 1.0, speaker_boost on.
-  const vs = { stability: 0.5, similarity_boost: 0.9, style: 0.0, use_speaker_boost: true, speed: 1.0 };
+  // Vadim's chosen dial: stability 1.0, similarity 0.80, style 0.20, speed 1.0.
+  const vs = { stability: 1.0, similarity_boost: 0.80, style: 0.20, use_speaker_boost: true, speed: 1.0 };
   console.log("NARRATION SETTINGS:", JSON.stringify(vs));
   const tts = (model, settings) => {
     const payload = { text: SCRIPT, model_id: model };
