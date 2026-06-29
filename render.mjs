@@ -96,9 +96,11 @@ let off = 0; for (const s of SEG) { if (!s.text) continue; s.charStart = off; of
 /* ---------- 2. narration (ElevenLabs, cloned voice) ---------- */
 function narrate() {
   // log the voice's OWN saved settings (what you hear in the ElevenLabs UI) for reference
+  let native = null;
   try {
     const s = sh("curl", ["-sS", "-f", `https://api.elevenlabs.io/v1/voices/${EL_VOICE}/settings`, "-H", `xi-api-key: ${EL_KEY}`]).toString();
     console.log("native voice settings:", s);
+    native = JSON.parse(s);
   } catch { console.log("voice settings fetch failed"); }
   // DIAGNOSTIC: which voice is the narration actually using, and what voices exist on the account
   try {
@@ -109,9 +111,11 @@ function narrate() {
     const lv = JSON.parse(sh("curl", ["-sS", "-f", "https://api.elevenlabs.io/v1/voices", "-H", `xi-api-key: ${EL_KEY}`]).toString());
     console.log("ACCOUNT VOICES:", (lv.voices || []).map((v) => `${v.name}=${v.voice_id}[${v.category}]`).join(" | "));
   } catch { console.log("voice list fetch failed"); }
-  // Human tune. multilingual_v2 honors these directly; eleven_v3 (tried first) is the most human/natural model.
-  // Kept ZZ Human 2's base (pace + stability); only STYLE raised 0.2 -> 0.5 to widen the tonal up/down (less monotone).
-  const vs = { stability: 0.45, similarity_boost: 0.85, style: 0.5, use_speaker_boost: true, speed: 0.95 };
+  // USE VADIM'S OWN saved voice settings (truest to his real voice). The old style:0.5 override stylized the timbre away from him.
+  const vs = (native && typeof native.stability === "number")
+    ? { stability: native.stability, similarity_boost: native.similarity_boost ?? 0.75, style: native.style ?? 0, use_speaker_boost: native.use_speaker_boost ?? true, speed: native.speed ?? 0.9 }
+    : { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true, speed: 0.9 };
+  console.log("NARRATION SETTINGS:", JSON.stringify(vs));
   const tts = (model, settings) => {
     const payload = { text: SCRIPT, model_id: model };
     if (settings) payload.voice_settings = settings;
@@ -247,10 +251,10 @@ async function recordSite(url, secs, outMp4) {
     if (!webm) return false;
     // normalize to a clean 1080x1920 clip of exactly `secs`, bottom scrim + gentle fade-in
     const args = existsSync("scrim.png")
-      ? ["-y", "-i", `${dir}/${webm}`, "-i", "scrim.png", "-filter_complex",
+      ? ["-y", "-sseof", `-${(secs + 0.15).toFixed(2)}`, "-i", `${dir}/${webm}`, "-i", "scrim.png", "-filter_complex",
          `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},format=yuv420p[v0];[v0][1:v]overlay=0:0,setsar=1[v]`,
          "-map", "[v]", "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]
-      : ["-y", "-i", `${dir}/${webm}`, "-vf", `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},format=yuv420p,setsar=1`, "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4];
+      : ["-y", "-sseof", `-${(secs + 0.15).toFixed(2)}`, "-i", `${dir}/${webm}`, "-vf", `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},format=yuv420p,setsar=1`, "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4];
     sh("ffmpeg", args);
     rmSync(dir, { recursive: true, force: true });
     return true;
