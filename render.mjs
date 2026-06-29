@@ -53,7 +53,7 @@ const WHITE = "&H00FFFFFF&";
 const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "inherit"], maxBuffer: 64 * 1024 * 1024 });
 
 /* premium cinematic grade applied to every site recording — matches the Palmier b-roll look */
-const GRADE = "eq=contrast=1.12:saturation=1.05:brightness=0.012,vibrance=intensity=0.20,colortemperature=temperature=6700,vignette=angle=PI/4.6,noise=alls=5:allf=t+u";
+const GRADE = "eq=contrast=1.12:saturation=1.05:brightness=0.012,vibrance=intensity=0.20,colortemperature=temperature=6700,vignette=angle=PI/4.6,unsharp=3:3:0.4";
 
 /* ---------- personalization: lift one real line from the agency's own site ---------- */
 function siteTagline(url) {
@@ -98,9 +98,9 @@ const SEG = [
     text: `So here is my offer, give me fourteen days with ${CLIENT_FIRM} on a free Lead Lock trial, I do all the work, you take the credit and the commission, so honestly, are you gonna say no to a quick fifteen minute hand off?` },
   // the reveal: show our own site so they know who is actually reaching out
   { key: "outro", type: "site", url: INTAKELINE_URL,
-    text: `Oh, and that A.I. that just answered your call, that was us, IntakeLine.` },
+    text: `Oh, and that demo I sent you in the link, go play with it, it is built just for your firm.` },
   { key: "end", type: "end",
-    text: `So go see it live for yourself, at intakeline dot com.` },
+    text: `And come see who is reaching out, over at intakeline dot com.` },
 ];
 const SCRIPT = SEG.filter((s) => s.text).map((s) => s.text).join(" ");
 let off = 0; for (const s of SEG) { if (!s.text) continue; s.charStart = off; off += s.text.length + 1; }
@@ -111,8 +111,8 @@ function narrate() {
     const vn = JSON.parse(sh("curl", ["-sS", "-f", `https://api.elevenlabs.io/v1/voices/${EL_VOICE}`, "-H", `xi-api-key: ${EL_KEY}`]).toString());
     console.log("NARRATION VOICE ->", EL_VOICE, "=", vn.name, "[" + vn.category + "]");
   } catch { console.log("NARRATION VOICE id:", EL_VOICE); }
-  const SPEED = process.env.SPEED ? parseFloat(process.env.SPEED) : 1.13;
-  const STYLE = process.env.STYLE ? parseFloat(process.env.STYLE) : 0.5;
+  const SPEED = process.env.SPEED ? parseFloat(process.env.SPEED) : 1.16;
+  const STYLE = process.env.STYLE ? parseFloat(process.env.STYLE) : 0.62;
   const STAB = process.env.STAB ? parseFloat(process.env.STAB) : 0.35;
   const vs = { stability: STAB, similarity_boost: 0.8, style: STYLE, use_speaker_boost: true, speed: SPEED };
   console.log("NARRATION SETTINGS:", JSON.stringify(vs));
@@ -260,8 +260,8 @@ async function recordSite(url, secs, outMp4) {
     const args = existsSync("scrim.png")
       ? ["-y", "-sseof", `-${(secs + 0.15).toFixed(2)}`, "-i", `${dir}/${webm}`, "-i", "scrim.png", "-filter_complex",
          `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},${GRADE},format=yuv420p[v0];[v0][1:v]overlay=0:0,setsar=1[v]`,
-         "-map", "[v]", "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]
-      : ["-y", "-sseof", `-${(secs + 0.15).toFixed(2)}`, "-i", `${dir}/${webm}`, "-vf", `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},${GRADE},format=yuv420p,setsar=1`, "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4];
+         "-map", "[v]", "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", outMp4]
+      : ["-y", "-sseof", `-${(secs + 0.15).toFixed(2)}`, "-i", `${dir}/${webm}`, "-vf", `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},${GRADE},format=yuv420p,setsar=1`, "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", outMp4];
     sh("ffmpeg", args);
     rmSync(dir, { recursive: true, force: true });
     return true;
@@ -292,7 +292,7 @@ async function htmlClip(html, secs, outMp4) {
   const pf = Math.max(4, Math.round(0.22 * FPS));
   const driftInc = (0.05 / Math.max(1, frames - pf)).toFixed(6);
   const z = `if(lt(on,${pf}),1.0+0.09*on/${pf},min(1.09+${driftInc}*(on-${pf}),1.14))`;
-  sh("ffmpeg", ["-y", "-i", png, "-vf", `scale=${Math.round(W * 1.2)}:${Math.round(H * 1.2)},zoompan=z='${z}':d=${frames}:s=${W}x${H}:fps=${FPS},format=yuv420p,setsar=1`, "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]);
+  sh("ffmpeg", ["-y", "-i", png, "-vf", `scale=${Math.round(W * 1.2)}:${Math.round(H * 1.2)},zoompan=z='${z}':d=${frames}:s=${W}x${H}:fps=${FPS},format=yuv420p,setsar=1`, "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", outMp4]);
   rmSync(png, { force: true });
 }
 
@@ -333,7 +333,7 @@ function demoHtml() {
 <div style="font-family:Inter;font-weight:600;font-size:50px;color:#a9bad2;margin-top:34px">I do all the work. You take the credit and the commission.</div>
 <div style="display:flex;align-items:center;gap:18px;margin-top:48px;background:#0e1626;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:22px 40px">
 <span style="width:16px;height:16px;border-radius:50%;background:#28c840;box-shadow:0 0 18px #28c840"></span>
-<span style="font-family:Inter;font-weight:700;font-size:44px;color:#fff">intakeline.com/demo</span>
+<span style="font-family:Inter;font-weight:700;font-size:44px;color:#fff">intakeline.com</span>
 <span style="font-family:Inter;font-weight:600;font-size:40px;color:#7d8ca6">— for ${CLIENT_FIRM}</span>
 </div></div></body></html>`;
 }
@@ -445,19 +445,19 @@ if (scenes.length >= 2) {
       last = out;
     }
     fc += `[${last}]fade=t=in:st=0:d=0.3[vout]`;
-    sh("ffmpeg", ["-y", ...inputs, "-filter_complex", fc, "-map", "[vout]", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(FPS), "body.mp4"]);
+    sh("ffmpeg", ["-y", ...inputs, "-filter_complex", fc, "-map", "[vout]", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-r", String(FPS), "body.mp4"]);
     assembled = true; console.log("assembled with whip-cut transitions");
   } catch (e) { console.log("whip-cut xfade failed -> hard-cut concat:", String(e.message).slice(0, 100)); }
 }
 if (!assembled) {
   writeFileSync("list.txt", scenes.map((f) => `file '${f}'`).join("\n"));
-  sh("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", "list.txt", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(FPS), "body.mp4"]);
+  sh("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", "list.txt", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-r", String(FPS), "body.mp4"]);
 }
 
 // burn captions (skip locally — no libass) then mux narration
 const haveCaps = !LOCAL && existsSync("captions.ass");
 if (haveCaps) {
-  sh("ffmpeg", ["-y", "-i", "body.mp4", "-vf", "ass=captions.ass", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "capped.mp4"]);
+  sh("ffmpeg", ["-y", "-i", "body.mp4", "-vf", "ass=captions.ass", "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-pix_fmt", "yuv420p", "capped.mp4"]);
 } else {
   sh("ffmpeg", ["-y", "-i", "body.mp4", "-c", "copy", "capped.mp4"]);
 }
