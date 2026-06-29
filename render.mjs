@@ -111,12 +111,9 @@ function narrate() {
     const lv = JSON.parse(sh("curl", ["-sS", "-f", "https://api.elevenlabs.io/v1/voices", "-H", `xi-api-key: ${EL_KEY}`]).toString());
     console.log("ACCOUNT VOICES:", (lv.voices || []).map((v) => `${v.name}=${v.voice_id}[${v.category}]`).join(" | "));
   } catch { console.log("voice list fetch failed"); }
-  // USE VADIM'S OWN saved voice settings (truest to his real voice). The old style:0.5 override stylized the timbre away from him.
-  // Only PACE (speed) is overridden to hit the ~33s target - speed is tempo, it does NOT change voice identity (style/similarity/stability stay native).
-  const SPD = 1.0;
-  const vs = (native && typeof native.stability === "number")
-    ? { stability: native.stability, similarity_boost: native.similarity_boost ?? 0.75, style: native.style ?? 0, use_speaker_boost: native.use_speaker_boost ?? true, speed: SPD }
-    : { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true, speed: SPD };
+  // ZZ VOICE 4 - the take Vadim approved: expressive (style 0.5) + natural pace (speed 0.95). LOCKED.
+  // Do NOT drift to "native"/speed 1.0 - that timbre was rejected. The native fetch above stays for diagnostics only.
+  const vs = { stability: 0.45, similarity_boost: 0.85, style: 0.5, use_speaker_boost: true, speed: 0.95 };
   console.log("NARRATION SETTINGS:", JSON.stringify(vs));
   const tts = (model, settings) => {
     const payload = { text: SCRIPT, model_id: model };
@@ -433,6 +430,17 @@ if (LOCAL) {
   }
   for (let i = 0; i < SEG.length; i++) SEG[i].dur = Math.max(1.0, (i < SEG.length - 1 ? SEG[i + 1].start : dur) - SEG[i].start);
   buildAss(al, dur);
+  // NARRATE_ONLY: hand Palmier the voice-4 VO (with voicemail spliced) + per-beat cut points + word-level caption timings, then stop before the slideshow render.
+  if (process.env.NARRATE_ONLY === "1") {
+    const beats = SEG.map((s) => ({ key: s.key, type: s.type, start: +(s.start || 0).toFixed(3), dur: +(s.dur || 0).toFixed(3), text: s.text || "" }));
+    const words = []; let cur = "", ws = null, we = 0;
+    for (let i = 0; i < al.chars.length; i++) { const c = al.chars[i]; if (/\s/.test(c)) { if (cur) { words.push({ w: cur, s: +ws.toFixed(3), e: +we.toFixed(3) }); cur = ""; ws = null; } continue; } if (ws === null) ws = al.starts[i]; we = al.ends[i]; cur += c; }
+    if (cur) words.push({ w: cur, s: +ws.toFixed(3), e: +we.toFixed(3) });
+    console.log("NARR_META_START"); console.log(JSON.stringify({ dur: +dur.toFixed(3), beats, words })); console.log("NARR_META_END");
+    const b64 = readFileSync("narration.mp3").toString("base64");
+    console.log("NARR_MP3_START"); for (let i = 0; i < b64.length; i += 60000) console.log(b64.slice(i, i + 60000)); console.log("NARR_MP3_END");
+    process.exit(0);
+  }
 }
 console.log("durations:", SEG.map((s) => `${s.key}:${s.dur.toFixed(1)}`).join(" "), "total", dur.toFixed(1));
 
