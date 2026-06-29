@@ -436,9 +436,8 @@ if (LOCAL) {
     const words = []; let cur = "", ws = null, we = 0;
     for (let i = 0; i < al.chars.length; i++) { const c = al.chars[i]; if (/\s/.test(c)) { if (cur) { words.push({ w: cur, s: +ws.toFixed(3), e: +we.toFixed(3) }); cur = ""; ws = null; } continue; } if (ws === null) ws = al.starts[i]; we = al.ends[i]; cur += c; }
     if (cur) words.push({ w: cur, s: +ws.toFixed(3), e: +we.toFixed(3) });
-    console.log("NARR_META_START"); console.log(JSON.stringify({ dur: +dur.toFixed(3), beats, words })); console.log("NARR_META_END");
-    const b64 = readFileSync("narration.mp3").toString("base64");
-    console.log("NARR_MP3_START"); for (let i = 0; i < b64.length; i += 60000) console.log(b64.slice(i, i + 60000)); console.log("NARR_MP3_END");
+    writeFileSync("narr_meta.json", JSON.stringify({ dur: +dur.toFixed(3), beats, words }));
+    console.log("NARRATE_ONLY done: narration.mp3 (" + statSync("narration.mp3").size + "b) + narr_meta.json; beats=" + beats.length + " words=" + words.length);
     process.exit(0);
   }
 }

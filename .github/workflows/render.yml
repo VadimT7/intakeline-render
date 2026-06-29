@@ -68,6 +68,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: audit-video-${{ github.event.client_payload.slug || github.event.inputs.slug }}
-          path: out.mp4
+          path: |
+            out.mp4
+            narration.mp3
+            narr_meta.json
           if-no-files-found: ignore
           retention-days: 7
