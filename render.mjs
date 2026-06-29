@@ -111,8 +111,8 @@ function narrate() {
     const lv = JSON.parse(sh("curl", ["-sS", "-f", "https://api.elevenlabs.io/v1/voices", "-H", `xi-api-key: ${EL_KEY}`]).toString());
     console.log("ACCOUNT VOICES:", (lv.voices || []).map((v) => `${v.name}=${v.voice_id}[${v.category}]`).join(" | "));
   } catch { console.log("voice list fetch failed"); }
-  // Super-enthusiastic + fast: LOW stability 0.3 (dynamic/animated delivery), style 0.6 (expressive punch), faster speed 1.1, similarity 0.85.
-  const vs = { stability: 0.30, similarity_boost: 0.85, style: 0.60, use_speaker_boost: true, speed: 1.10 };
+  // Dial: stability 1.0, style 0, similarity 0.50, speed 1.10.
+  const vs = { stability: 1.0, similarity_boost: 0.50, style: 0.0, use_speaker_boost: true, speed: 1.10 };
   console.log("NARRATION SETTINGS:", JSON.stringify(vs));
   const tts = (model, settings) => {
     const payload = { text: SCRIPT, model_id: model };
