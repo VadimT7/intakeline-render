@@ -1,16 +1,23 @@
-/* IntakeLine audit-video renderer — real screen recordings + designed offer slides.
+/* IntakeLine cold-outreach video renderer — 16:9, fully automated, no hand editing.
  *
- * Scenes (your cloned ElevenLabs voice narrates over everything, captions pinned bottom):
- *   s1   REAL smooth screen-recording of the agency / legal-software site
- *   s2   REAL smooth screen-recording of the client firm's site (the after-hours leak story)
- *   fix  designed slide: the 24/7 AI receptionist
- *   01-05 designed numbered offer slides (free trial, more cases/ROAS, churn, commission, no white-label)
- *   cta  designed slide: hear it live + book 15 min
- * Each scene is rendered to its own clip, then concatenated, captions burned, narration muxed.
+ * Recreates the Palmier "Leaky Bucket" cut as a deterministic ffmpeg pipeline so n8n can mint a
+ * personalized video per prospect with zero manual steps. Look: graded landscape site b-roll +
+ * bottom scrim + white/gold/red karaoke captions + brand-navy/red motion cards + Jack John VO.
  *
- * Env: SLUG AGENCY CLIENT_FIRM FIRST_NAME SITE_URL AGENCY_URL LEAK_NOTE PAGE_URL
- *      ELEVEN_API_KEY ELEVEN_VOICE_ID  R2_*  N8N_INGEST_URL  [LOCAL_TEST=1 for local visual dry-run]
- * Output: 1080x1920 MP4 -> R2 staging -> n8n ingest -> Drive "Intro Videos".
+ * Beats (Hormozi grand-slam):
+ *   s1    agency homepage b-roll  — call-out + "world-class"
+ *   s2a   client firm b-roll      — the 2am stress test
+ *   vm    voicemail card          — spliced phone-line greeting
+ *   s2b   client firm b-roll      — the $30k cost
+ *   logo  IntakeLine card         — the solution
+ *   cta   demo/offer card         — 14-day Lead-Lock trial
+ *   outro intakeline.com b-roll   — "that A.I. was us, IntakeLine"  (the reveal)
+ *   end   URL lock card           — intakeline.com
+ *
+ * Env: SLUG AGENCY CLIENT_FIRM FIRST_NAME SITE_URL AGENCY_URL LEAK_NOTE
+ *      ELEVEN_API_KEY ELEVEN_VOICE_ID  R2_*  N8N_INGEST_URL  [LOCAL_TEST=1 visual dry-run]
+ *      [VOICE_ID TTS_MODEL SPEED STYLE STAB NO_VS  — tuning overrides]
+ * Output: 1920x1080 MP4 -> R2 staging -> n8n ingest -> Drive.
  */
 import { chromium } from "playwright";
 import { execFileSync } from "node:child_process";
@@ -24,12 +31,15 @@ const CLIENT_FIRM = env("CLIENT_FIRM") || "your client firm";
 const FIRST = env("FIRST_NAME") || "there";
 const SITE_URL = env("SITE_URL");
 const AGENCY_URL = env("AGENCY_URL");
-const LEAK_NOTE = env("LEAK_NOTE") || "no one even picked up, and there was no way to leave any details";
+const INTAKELINE_URL = env("INTAKELINE_URL") || "https://intakeline.com";
 const FPS = 30;
+const W = 1920, H = 1080;
 const LOCAL = env("LOCAL_TEST") === "1";
 
 const EL_KEY = env("ELEVEN_API_KEY");
-const EL_VOICE = process.env.VOICE_ID || env("ELEVEN_VOICE_ID");
+// Locked voice: Jack John — Conversational and Upbeat (premade). Baked as default so the
+// automated path needs no override; ELEVEN_VOICE_ID secret or VOICE_ID env still wins if set.
+const EL_VOICE = process.env.VOICE_ID || env("ELEVEN_VOICE_ID") || "7EzWGsX10sAS4c9m9cPf";
 const R2_KEY = env("R2_ACCESS_KEY_ID");
 const R2_SECRET = env("R2_SECRET_ACCESS_KEY");
 const R2_ACCOUNT = env("R2_ACCOUNT_ID");
@@ -37,13 +47,15 @@ const R2_BUCKET = env("R2_BUCKET", "intakeline-media");
 const N8N_INGEST_URL = env("N8N_INGEST_URL");
 const SKIP_CALLBACK = env("SKIP_CALLBACK") === "1";
 
-const ACCENT = "&H000EE8F9&"; // brand gold (ASS BGR)
+const GOLD = "&H000EE8F9&";  // brand gold f9e80e (ASS BGR)
+const RED = "&H005C5CFF&";   // alert red ff5c5c (ASS BGR)
 const WHITE = "&H00FFFFFF&";
 const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "inherit"], maxBuffer: 64 * 1024 * 1024 });
 
-/* ---------- 1. script broken into timed segments ---------- */
-const leak = LEAK_NOTE.replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
-// Personalization: pull one real line from the agency's OWN site so the hook references them specifically. Graceful fallback.
+/* premium cinematic grade applied to every site recording — matches the Palmier b-roll look */
+const GRADE = "eq=contrast=1.12:saturation=1.05:brightness=0.012,vibrance=intensity=0.20,colortemperature=temperature=6700,vignette=angle=PI/4.6,noise=alls=5:allf=t+u";
+
+/* ---------- personalization: lift one real line from the agency's own site ---------- */
 function siteTagline(url) {
   if (!url) return "";
   try {
@@ -65,54 +77,40 @@ function siteTagline(url) {
 }
 const TAGLINE = siteTagline(AGENCY_URL);
 console.log("site tagline:", TAGLINE || "(none - generic hook)");
-// Crisp brand-gold SVG icons (Material paths) instead of emoji, which render inconsistently on the CI font.
-const ICON_PHONE = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e80e"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>';
-const ICON_MONEY = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e80e"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>';
-const ICON_PLAY = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#f9e80e"><path d="M8 5v14l11-7z"/></svg>';
+
+const ICON_PLAY = '<svg width="120" height="120" viewBox="0 0 24 24" fill="#f9e80e"><path d="M8 5v14l11-7z"/></svg>';
+const PHONE_RED = '<svg width="120" height="120" viewBox="0 0 24 24" fill="#ff5a6e"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>';
+
+/* ---------- 1. script broken into timed beats ---------- */
 const SEG = [
-  // Beat 1 - Call-Out (agency homepage): flowing high-energy connective phrasing (council: no fragments/dashes -> no pauses)
   { key: "s1", type: "site", url: AGENCY_URL,
     text: TAGLINE
       ? `Okay ${AGENCY}, real quick, I was just on your site, "${TAGLINE}", love it, and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class.`
       : `Okay ${AGENCY}, real quick, I was just on your site and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class.` },
-  // Beat 2a - the stress test (client site)
   { key: "s2a", type: "site", url: SITE_URL,
     text: `But your traffic is so good I had to test where it lands, so I called ${CLIENT_FIRM} at two A.M. like a real injured lead, and listen to this.` },
-  // Beat 2b - the voicemail clip (spliced audio + voicemail card)
   { key: "vm", type: "vm" },
-  // Beat 2c - the cost (client site)
   { key: "s2b", type: "site", url: SITE_URL,
     text: `So just like that a thirty thousand dollar case walks out the door, because a message taker picked up instead of a real lawyer, and that is the leak nobody tells you about.` },
-  // Beat 3 - the Solution (IntakeLine logo)
   { key: "logo", type: "logo",
     text: `So here is what I built you, an A.I. agent that plugs that leak instantly, it answers on the first ring, books the lead, and doubles your return on ad spend, totally hands off.` },
-  // Beat 4 - the Grand Slam CTA (private demo) with the "are you opposed" close
   { key: "cta", type: "demo",
     text: `So here is my offer, give me fourteen days with ${CLIENT_FIRM} on a free Lead Lock trial, I do all the work, you take the credit and the commission, so honestly, are you gonna say no to a quick fifteen minute hand off?` },
+  // the reveal: show our own site so they know who is actually reaching out
+  { key: "outro", type: "site", url: INTAKELINE_URL,
+    text: `Oh, and that A.I. that just answered your call, that was us, IntakeLine.` },
+  { key: "end", type: "end",
+    text: `So go see it live for yourself, at intakeline dot com.` },
 ];
 const SCRIPT = SEG.filter((s) => s.text).map((s) => s.text).join(" ");
 let off = 0; for (const s of SEG) { if (!s.text) continue; s.charStart = off; off += s.text.length + 1; }
 
-/* ---------- 2. narration (ElevenLabs, cloned voice) ---------- */
+/* ---------- 2. narration (ElevenLabs, with-timestamps for caption sync) ---------- */
 function narrate() {
-  // log the voice's OWN saved settings (what you hear in the ElevenLabs UI) for reference
-  let native = null;
-  try {
-    const s = sh("curl", ["-sS", "-f", `https://api.elevenlabs.io/v1/voices/${EL_VOICE}/settings`, "-H", `xi-api-key: ${EL_KEY}`]).toString();
-    console.log("native voice settings:", s);
-    native = JSON.parse(s);
-  } catch { console.log("voice settings fetch failed"); }
-  // DIAGNOSTIC: which voice is the narration actually using, and what voices exist on the account
   try {
     const vn = JSON.parse(sh("curl", ["-sS", "-f", `https://api.elevenlabs.io/v1/voices/${EL_VOICE}`, "-H", `xi-api-key: ${EL_KEY}`]).toString());
     console.log("NARRATION VOICE ->", EL_VOICE, "=", vn.name, "[" + vn.category + "]");
-  } catch { console.log("NARRATION VOICE id:", EL_VOICE, "(name lookup failed)"); }
-  try {
-    const lv = JSON.parse(sh("curl", ["-sS", "-f", "https://api.elevenlabs.io/v1/voices", "-H", `xi-api-key: ${EL_KEY}`]).toString());
-    console.log("ACCOUNT VOICES:", (lv.voices || []).map((v) => `${v.name}=${v.voice_id}[${v.category}]`).join(" | "));
-  } catch { console.log("voice list fetch failed"); }
-  // Use the voice's OWN natural saved settings, but allow a SPEED override (natural premade voices pace slow; this controls length without changing tone).
-  // Jack John dial: a touch more expressive (style) + a touch faster (speed); env-tunable (SPEED/STYLE/STAB).
+  } catch { console.log("NARRATION VOICE id:", EL_VOICE); }
   const SPEED = process.env.SPEED ? parseFloat(process.env.SPEED) : 1.13;
   const STYLE = process.env.STYLE ? parseFloat(process.env.STYLE) : 0.5;
   const STAB = process.env.STAB ? parseFloat(process.env.STAB) : 0.35;
@@ -122,7 +120,6 @@ function narrate() {
     const payload = { text: SCRIPT, model_id: model };
     if (settings) payload.voice_settings = settings;
     writeFileSync("el_body.json", JSON.stringify(payload));
-    // Highest source fidelity the tier allows -> cleaner SAME voice (no tonal change); falls back to 128k.
     for (const fmt of ["mp3_44100_192", "mp3_44100_128"]) {
       try {
         const raw = sh("curl", ["-sS", "-f", "-X", "POST",
@@ -137,19 +134,18 @@ function narrate() {
     }
     throw new Error("all source formats failed for " + model);
   };
-  // Model + settings env-overridable so we can REPLICATE exactly what the ElevenLabs UI does (the council's verdict: the UI uses a different model/settings than our API call).
-  // NO_VS=1 omits voice_settings entirely -> the voice's saved defaults apply, same as the UI playground.
-  const MODEL = process.env.TTS_MODEL || "eleven_multilingual_v2";
+  // Jack John is a turbo_v2_5 voice (natural + fast); fall back to multilingual_v2 if turbo rejects.
+  const MODEL = process.env.TTS_MODEL || "eleven_turbo_v2_5";
   const settings = process.env.NO_VS === "1" ? null : vs;
   let d;
-  try { d = tts(MODEL, settings); console.log("NARRATION MODEL:", MODEL, "| settings:", settings ? JSON.stringify(settings) : "SAVED-DEFAULTS (no override)"); }
-  catch (e) { console.log("model " + MODEL + " failed (" + String(e.message).slice(0, 80) + "); fallback multilingual_v2 + explicit"); d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2"); }
+  try { d = tts(MODEL, settings); console.log("NARRATION MODEL:", MODEL); }
+  catch (e) { console.log("model " + MODEL + " failed (" + String(e.message).slice(0, 80) + "); fallback multilingual_v2"); d = tts("eleven_multilingual_v2", vs); console.log("NARRATION MODEL: eleven_multilingual_v2"); }
   writeFileSync("narration.mp3", Buffer.from(d.audio_base64, "base64"));
   const al = d.alignment || d.normalized_alignment;
   return { chars: al.characters, starts: al.character_start_times_seconds, ends: al.character_end_times_seconds };
 }
 
-/* ---------- 3. captions (.ass): pinned bottom, phrase-timed, keyword highlight, subtle pop ---------- */
+/* ---------- 3. captions (.ass): bottom, phrase-timed, white + gold/red keyword highlight ---------- */
 function tc(sec) {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = (sec % 60).toFixed(2).padStart(5, "0");
   return `${h}:${String(m).padStart(2, "0")}:${s}`;
@@ -168,33 +164,33 @@ function buildAss(al, dur) {
   let p = [], len = 0;
   for (const wd of words) {
     p.push(wd); len += wd.w.length + 1;
-    if (len >= 24 || /[.!?,]$/.test(wd.w)) { phrases.push(p); p = []; len = 0; }
+    if (len >= 30 || /[.!?,]$/.test(wd.w)) { phrases.push(p); p = []; len = 0; }
   }
   if (p.length) phrases.push(p);
   const esc = (s) => s.replace(/[{}]/g, "").replace(/\\/g, "");
-  const keys = [/world-class/i, /thirty-thousand/i, /first ring/i, /\bdoubles?\b/i, /\bROAS\b/i, /commission/i, /\bcredit\b/i, /Lead-Lock/i, /fifteen-minute/i, /opposed/i, /wreck lead/i, new RegExp(CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")];
+  const cf = CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const goldKeys = [/world-class/i, /first ring/i, /\bdoubles?\b/i, /return on ad spend/i, /Lead Lock/i, /fifteen[ -]minute/i, /\bcommission\b/i, /\bcredit\b/i, /IntakeLine/i, /intakeline dot com/i, new RegExp(cf, "i")];
+  const redKeys = [/thirty thousand dollar/i, /walks out the door/i, /the leak/i];
   const dialog = phrases.map((ph) => {
     const s = ph[0].s, e = ph[ph.length - 1].e + 0.06;
-    let text = esc(ph.map((x) => x.w).join(" ")).replace(/\bA I\b/g, "AI");
-    for (const re of keys) text = text.replace(re, (m) => `{\\c${ACCENT}}${m}{\\c${WHITE}}`);
-    return `Dialogue: 0,${tc(s)},${tc(e)},Cap,,0,0,0,,{\\fad(40,50)\\fscx72\\fscy72\\t(0,140,\\fscx100\\fscy100)}${text}`;
+    let text = esc(ph.map((x) => x.w).join(" ")).replace(/\bA I\b/g, "AI").replace(/\bA M\b/g, "AM");
+    for (const re of redKeys) text = text.replace(re, (m) => `{\\c${RED}}${m}{\\c${WHITE}}`);
+    for (const re of goldKeys) text = text.replace(re, (m) => /\\c&/.test(m) ? m : `{\\c${GOLD}}${m}{\\c${WHITE}}`);
+    return `Dialogue: 0,${tc(s)},${tc(e)},Cap,,0,0,0,,{\\fad(40,50)\\fscx80\\fscy80\\t(0,130,\\fscx100\\fscy100)}${text}`;
   }).join("\n");
-  const brand = `Dialogue: 0,${tc(0)},${tc(dur)},Brand,,0,0,0,,INTAKELINE`;
   writeFileSync("captions.ass", `[Script Info]
 ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
+PlayResX: ${W}
+PlayResY: ${H}
 WrapStyle: 0
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Cap,DejaVu Sans,90,&H00FFFFFF,&H00000000,&H90000000,1,0,1,6,4,2,80,80,220,1
-Style: Brand,DejaVu Sans,40,&H000EE8F9,&H00000000,&H00000000,1,0,1,3,0,2,60,60,120,1
+Style: Cap,DejaVu Sans,72,&H00FFFFFF,&H00000000,&H90000000,1,0,1,5,3,2,260,260,120,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-${brand}
 ${dialog}
 `);
 }
@@ -203,14 +199,14 @@ ${dialog}
 async function makeScrim(file) {
   try {
     const browser = await chromium.launch({ args: ["--no-sandbox"] });
-    const page = await (await browser.newContext({ viewport: { width: 1080, height: 1920 } })).newPage();
-    await page.setContent(`<body style="margin:0;width:1080px;height:1920px"><div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(7,11,22,.94) 0%,rgba(7,11,22,.80) 15%,rgba(7,11,22,0) 38%)"></div></body>`, { waitUntil: "domcontentloaded" });
+    const page = await (await browser.newContext({ viewport: { width: W, height: H } })).newPage();
+    await page.setContent(`<body style="margin:0;width:${W}px;height:${H}px"><div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(7,11,22,.93) 0%,rgba(7,11,22,.74) 17%,rgba(7,11,22,0) 42%)"></div></body>`, { waitUntil: "domcontentloaded" });
     await page.screenshot({ path: file, omitBackground: true });
     await browser.close(); return true;
   } catch { return false; }
 }
 
-/* ---------- 4. real screen recording (smooth eased scroll) ---------- */
+/* ---------- 4. real site recording: landscape, eased scroll, cinematic grade + scrim ---------- */
 async function recordSite(url, secs, outMp4) {
   if (!url) return false;
   const dir = `rec_${Math.random().toString(36).slice(2)}`;
@@ -218,19 +214,27 @@ async function recordSite(url, secs, outMp4) {
   try {
     browser = await chromium.launch({ args: ["--no-sandbox"] });
     const ctx = await browser.newContext({
-      viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1,
-      recordVideo: { dir, size: { width: 1080, height: 1920 } },
+      viewport: { width: W, height: H }, deviceScaleFactor: 1,
+      recordVideo: { dir, size: { width: W, height: H } },
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
     });
     const page = await ctx.newPage();
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-    await page.waitForTimeout(1600);
-    for (const re of [/accept/i, /agree/i, /got it/i, /allow all/i, /reject/i]) {
+    const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+    // bot-walls (Cloudflare 403/429/503, "Just a moment") render as a real page — Playwright won't throw.
+    // Detect them and bail so we fall back to a branded card instead of burning an error page into the video.
+    const status = resp ? resp.status() : 0;
+    const title = (await page.title().catch(() => "")) || "";
+    if (status >= 400 || /just a moment|attention required|forbidden|access denied|are you a robot/i.test(title)) {
+      console.log("site", url, "blocked (status", status, "title:", title.slice(0, 40) + ")");
+      await ctx.close(); await browser.close(); rmSync(dir, { recursive: true, force: true }); return false;
+    }
+    await page.waitForTimeout(1700);
+    for (const re of [/accept/i, /agree/i, /got it/i, /allow all/i, /reject/i, /^ok$/i]) {
       try { const b = page.getByRole("button", { name: re }).first(); if (await b.isVisible({ timeout: 600 })) await b.click({ timeout: 600 }); } catch {}
     }
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(500);
     await page.evaluate(async (ms) => {
-      const max = Math.max(0, document.body.scrollHeight - window.innerHeight);
+      const max = Math.min(2600, Math.max(0, document.body.scrollHeight - window.innerHeight));
       const t0 = performance.now();
       await new Promise((res) => {
         function step(t) {
@@ -241,153 +245,125 @@ async function recordSite(url, secs, outMp4) {
         }
         requestAnimationFrame(step);
       });
-    }, Math.max(2200, secs * 1000));
+    }, Math.max(2600, secs * 1000));
     await page.waitForTimeout(300);
     await ctx.close();
     await browser.close();
     const webm = readdirSync(dir).find((f) => f.endsWith(".webm"));
     if (!webm) return false;
-    // normalize to a clean 1080x1920 clip of exactly `secs`, bottom scrim + gentle fade-in
     const args = existsSync("scrim.png")
       ? ["-y", "-sseof", `-${(secs + 0.15).toFixed(2)}`, "-i", `${dir}/${webm}`, "-i", "scrim.png", "-filter_complex",
-         `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},format=yuv420p[v0];[v0][1:v]overlay=0:0,setsar=1[v]`,
+         `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},${GRADE},format=yuv420p[v0];[v0][1:v]overlay=0:0,setsar=1[v]`,
          "-map", "[v]", "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]
-      : ["-y", "-sseof", `-${(secs + 0.15).toFixed(2)}`, "-i", `${dir}/${webm}`, "-vf", `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},format=yuv420p,setsar=1`, "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4];
+      : ["-y", "-sseof", `-${(secs + 0.15).toFixed(2)}`, "-i", `${dir}/${webm}`, "-vf", `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},${GRADE},format=yuv420p,setsar=1`, "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4];
     sh("ffmpeg", args);
     rmSync(dir, { recursive: true, force: true });
     return true;
-  } catch (e) { try { await browser?.close(); } catch {} return false; }
+  } catch (e) { try { await browser?.close(); } catch {} console.log("record fail", url, String(e.message).slice(0, 100)); return false; }
 }
 
-/* ---------- 5. designed offer slide (Montserrat, brand gradient, number, icon, agency tag) ---------- */
-function slideHtml({ n, icon, title, sub }) {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Inter:wght@400;600&display=swap');
+/* ---------- 5. designed cards -> clip (zoom-punch entrance) ---------- */
+const CARD_HEAD = `<!doctype html><html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Inter:wght@400;600;700&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
-body{width:1080px;height:1920px;overflow:hidden;background:#070b16;position:relative;font-family:Inter,Arial,sans-serif}
-.bg{position:absolute;inset:0;background:radial-gradient(120% 76% at 50% 30%,#1b3460 0%,#0d1830 42%,#070b16 76%)}
-.glow{position:absolute;inset:0;background:radial-gradient(52% 24% at 50% 9%,rgba(249,232,14,.13),rgba(249,232,14,0) 70%)}
+body{width:${W}px;height:${H}px;overflow:hidden;background:#070b16;position:relative;font-family:Inter,Arial,sans-serif}
 .grid{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px)}
-.num{position:absolute;top:120px;left:0;right:0;text-align:center;font-family:Montserrat;font-weight:900;font-size:340px;line-height:1;color:rgba(249,232,14,.10);letter-spacing:-12px}
-.wrap{position:absolute;top:0;left:0;right:0;height:1500px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 120px;text-align:center}
-.icon{font-size:150px;margin-bottom:36px;filter:drop-shadow(0 8px 30px rgba(0,0,0,.4))}
-.title{font-family:Montserrat;font-weight:900;font-size:118px;line-height:1.0;color:#fff;letter-spacing:-3px;text-shadow:0 6px 40px rgba(0,0,0,.5)}
-.sub{font-family:Inter;font-weight:400;font-size:50px;color:#a9bad2;margin-top:40px;line-height:1.32}
-.tag{position:absolute;bottom:470px;left:0;right:0;text-align:center;font-family:Montserrat;font-weight:800;font-size:36px;letter-spacing:6px;color:#f9e80e;text-transform:uppercase;opacity:.92}
-</style></head><body>
-<div class=bg></div><div class=glow></div><div class=grid></div>
-${n ? `<div class=num>${n}</div>` : ""}
-<div class=wrap><div class=icon>${icon || ""}</div><div class=title>${title}</div>${sub ? `<div class=sub>${sub}</div>` : ""}</div>
-<div class=tag>for ${AGENCY}</div>
-</body></html>`;
-}
-async function slideClip(slide, secs, outMp4) {
-  const png = `slide_${Math.random().toString(36).slice(2)}.png`;
-  let browser;
-  try {
-    browser = await chromium.launch({ args: ["--no-sandbox"] });
-    const page = await (await browser.newContext({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 })).newPage();
-    await page.setContent(slideHtml(slide), { waitUntil: "load" });
-    try { await page.evaluate(() => document.fonts.ready); } catch {}
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: png });
-    await browser.close();
-  } catch (e) { try { await browser?.close(); } catch {}; sh("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=0x0A0F1E:s=1080x1920", "-frames:v", "1", png]); }
-  const frames = Math.round(secs * FPS);
-  // MrBeast entrance: hard zoom-PUNCH to 1.10 in ~0.22s, then slow drift to ~1.16. Snaps the eye on every cut.
-  const pf = Math.max(4, Math.round(0.22 * FPS));
-  const driftInc = (0.06 / Math.max(1, frames - pf)).toFixed(6);
-  const z = `if(lt(on,${pf}),1.0+0.10*on/${pf},min(1.10+${driftInc}*(on-${pf}),1.16))`;
-  sh("ffmpeg", ["-y", "-i", png,
-    "-vf", `scale=1296:2304,zoompan=z='${z}':d=${frames}:s=1080x1920:fps=${FPS},format=yuv420p,setsar=1`,
-    "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]);
-  rmSync(png, { force: true });
-}
-
-/* ---------- 5b. generic HTML card -> clip (same zoom-punch as slides) ---------- */
+.wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 200px;text-align:center}
+</style></head><body>`;
 async function htmlClip(html, secs, outMp4) {
   const png = `h_${Math.random().toString(36).slice(2)}.png`;
   let browser;
   try {
     browser = await chromium.launch({ args: ["--no-sandbox"] });
-    const page = await (await browser.newContext({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 })).newPage();
+    const page = await (await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 })).newPage();
     await page.setContent(html, { waitUntil: "load" });
     try { await page.evaluate(() => document.fonts.ready); } catch {}
     await page.waitForTimeout(450);
     await page.screenshot({ path: png });
     await browser.close();
-  } catch (e) { try { await browser?.close(); } catch {}; sh("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=0x0A0F1E:s=1080x1920", "-frames:v", "1", png]); }
+  } catch (e) { try { await browser?.close(); } catch {}; sh("ffmpeg", ["-y", "-f", "lavfi", "-i", `color=c=0x070b16:s=${W}x${H}`, "-frames:v", "1", png]); }
   const frames = Math.round(secs * FPS);
   const pf = Math.max(4, Math.round(0.22 * FPS));
-  const driftInc = (0.06 / Math.max(1, frames - pf)).toFixed(6);
-  const z = `if(lt(on,${pf}),1.0+0.10*on/${pf},min(1.10+${driftInc}*(on-${pf}),1.16))`;
-  sh("ffmpeg", ["-y", "-i", png, "-vf", `scale=1296:2304,zoompan=z='${z}':d=${frames}:s=1080x1920:fps=${FPS},format=yuv420p,setsar=1`, "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]);
+  const driftInc = (0.05 / Math.max(1, frames - pf)).toFixed(6);
+  const z = `if(lt(on,${pf}),1.0+0.09*on/${pf},min(1.09+${driftInc}*(on-${pf}),1.14))`;
+  sh("ffmpeg", ["-y", "-i", png, "-vf", `scale=${Math.round(W * 1.2)}:${Math.round(H * 1.2)},zoompan=z='${z}':d=${frames}:s=${W}x${H}:fps=${FPS},format=yuv420p,setsar=1`, "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "20", outMp4]);
   rmSync(png, { force: true });
 }
-const PHONE_RED = '<svg width="150" height="150" viewBox="0 0 24 24" fill="#ff5a6e"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>';
-const CARD_HEAD = `<!doctype html><html><head><meta charset="utf-8"><style>
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Inter:wght@400;600;700&display=swap');
-*{margin:0;padding:0;box-sizing:border-box}
-body{width:1080px;height:1920px;overflow:hidden;background:#070b16;position:relative;font-family:Inter,Arial,sans-serif}
-.grid{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px)}
-.wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 110px;text-align:center}
-</style></head><body>`;
+
 function voicemailHtml() {
-  const bars = [46, 96, 64, 120, 52, 104, 74, 130, 58, 92, 70, 110].map((h) => `<i style="height:${h}px"></i>`).join("");
+  const bars = [40, 86, 58, 110, 48, 96, 66, 120, 52, 84, 64, 100, 56, 92].map((h) => `<i style="height:${h}px"></i>`).join("");
   return `${CARD_HEAD}
-<div class=grid style="background:radial-gradient(120% 76% at 50% 34%,#3a1422 0%,#1a0a13 46%,#070b16 80%)"></div>
-<div style="position:absolute;top:150px;left:80px;display:flex;align-items:center;gap:18px;background:rgba(255,40,40,.16);border:3px solid #ff3b3b;border-radius:999px;padding:16px 34px 16px 28px;box-shadow:0 0 40px rgba(255,40,40,.35)">
-<span style="width:28px;height:28px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 26px #ff3b3b"></span>
-<span style="font-family:Montserrat;font-weight:900;font-size:46px;letter-spacing:6px;color:#fff">LIVE</span></div>
-<div style="position:absolute;top:158px;right:80px;font-family:Montserrat;font-weight:800;font-size:42px;letter-spacing:4px;color:#ff8a97">REC 0:03</div>
-<div style="position:absolute;top:300px;left:0;right:0;text-align:center;font-family:Montserrat;font-weight:900;font-size:44px;letter-spacing:8px;color:#ff5a6e;opacity:.85;margin-top:80px">2:00 AM</div>
+<div class=grid style="background:radial-gradient(120% 90% at 50% 42%,#3a1422 0%,#1a0a13 48%,#070b16 82%)"></div>
+<div style="position:absolute;top:80px;left:96px;display:flex;align-items:center;gap:16px;background:rgba(255,40,40,.16);border:3px solid #ff3b3b;border-radius:999px;padding:14px 30px 14px 24px;box-shadow:0 0 40px rgba(255,40,40,.35)">
+<span style="width:24px;height:24px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 24px #ff3b3b"></span>
+<span style="font-family:Montserrat;font-weight:900;font-size:40px;letter-spacing:5px;color:#fff">LIVE</span></div>
+<div style="position:absolute;top:88px;right:96px;font-family:Montserrat;font-weight:800;font-size:38px;letter-spacing:4px;color:#ff8a97">REC 0:03 · 2:00 AM</div>
 <div class=wrap>
-<div style="filter:drop-shadow(0 10px 34px rgba(255,90,110,.35));margin-bottom:30px">${PHONE_RED}</div>
-<div style="font-family:Montserrat;font-weight:900;font-size:104px;letter-spacing:10px;color:#fff">VOICEMAIL</div>
-<div style="display:flex;gap:13px;align-items:center;height:140px;margin:54px 0">${bars}</div>
-<div style="font-family:Inter;font-weight:700;font-size:58px;color:#ff8a97;margin-top:4px">"...please call back tomorrow."</div>
-<div style="font-family:Inter;font-weight:600;font-size:46px;color:#9fb0c8;margin-top:30px">A $30,000 wreck lead, hanging up.</div>
+<div style="filter:drop-shadow(0 10px 34px rgba(255,90,110,.35));margin-bottom:18px">${PHONE_RED}</div>
+<div style="font-family:Montserrat;font-weight:900;font-size:118px;letter-spacing:12px;color:#fff;line-height:1">VOICEMAIL</div>
+<div style="display:flex;gap:12px;align-items:center;height:120px;margin:40px 0">${bars}</div>
+<div style="font-family:Inter;font-weight:700;font-size:54px;color:#ff8a97">"...please call back tomorrow."</div>
+<div style="font-family:Inter;font-weight:600;font-size:42px;color:#9fb0c8;margin-top:22px">A $30,000 case, hanging up.</div>
 </div>
-<style>.wrap i{width:18px;background:linear-gradient(#ff5a6e,#ff8a97);border-radius:9px;display:inline-block}</style>
+<style>.wrap i{width:16px;background:linear-gradient(#ff5a6e,#ff8a97);border-radius:8px;display:inline-block}</style>
 </body></html>`;
 }
 function logoHtml() {
   return `${CARD_HEAD}
-<div class=grid style="background:radial-gradient(120% 76% at 50% 30%,#1b3460 0%,#0d1830 44%,#070b16 78%)"></div>
-<div style="position:absolute;inset:0;background:radial-gradient(50% 22% at 50% 38%,rgba(249,232,14,.14),rgba(249,232,14,0) 70%)"></div>
+<div class=grid style="background:radial-gradient(120% 90% at 50% 38%,#1b3460 0%,#0d1830 46%,#070b16 80%)"></div>
+<div style="position:absolute;inset:0;background:radial-gradient(46% 30% at 50% 42%,rgba(249,232,14,.14),rgba(249,232,14,0) 70%)"></div>
 <div class=wrap>
-<svg width="600" height="150" viewBox="0 0 600 150" style="margin-bottom:30px"><path d="M0 75 H150 L182 75 L205 26 L232 124 L258 75 L300 75 L330 40 L360 110 L388 75 H600" fill="none" stroke="#f9e80e" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/></svg>
-<div style="font-family:Montserrat;font-weight:900;font-size:150px;letter-spacing:-3px;color:#fff;line-height:1">INTAKE<span style="color:#f9e80e">LINE</span></div>
-<div style="font-family:Inter;font-weight:600;font-size:52px;color:#a9bad2;margin-top:34px">Answers on the first ring. 24/7.</div>
+<svg width="560" height="130" viewBox="0 0 600 150" style="margin-bottom:26px"><path d="M0 75 H150 L182 75 L205 26 L232 124 L258 75 L300 75 L330 40 L360 110 L388 75 H600" fill="none" stroke="#f9e80e" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/></svg>
+<div style="font-family:Montserrat;font-weight:900;font-size:160px;letter-spacing:-4px;color:#fff;line-height:1">INTAKE<span style="color:#f9e80e">LINE</span></div>
+<div style="font-family:Inter;font-weight:600;font-size:52px;color:#a9bad2;margin-top:30px">Answers on the first ring. Books the case. 24/7.</div>
 </div></body></html>`;
 }
 function demoHtml() {
   return `${CARD_HEAD}
-<div class=grid style="background:radial-gradient(120% 76% at 50% 30%,#152a4d 0%,#0b1426 46%,#070b16 80%)"></div>
+<div class=grid style="background:radial-gradient(120% 90% at 50% 38%,#152a4d 0%,#0b1426 48%,#070b16 82%)"></div>
 <div class=wrap>
-<div style="width:840px;background:#0e1626;border:1px solid rgba(255,255,255,.10);border-radius:30px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.55)">
-<div style="display:flex;align-items:center;gap:12px;padding:26px 30px;background:#0a1120;border-bottom:1px solid rgba(255,255,255,.07)">
-<span style="width:20px;height:20px;border-radius:50%;background:#ff5f57;display:inline-block"></span>
-<span style="width:20px;height:20px;border-radius:50%;background:#febc2e;display:inline-block"></span>
-<span style="width:20px;height:20px;border-radius:50%;background:#28c840;display:inline-block"></span>
-<div style="margin-left:18px;flex:1;background:#070b16;border-radius:12px;padding:16px 26px;font-family:Inter;font-size:36px;color:#7d8ca6">intakeline.com/demo</div>
-</div>
-<div style="padding:90px 40px 100px;text-align:center">
-<div style="filter:drop-shadow(0 8px 30px rgba(249,232,14,.3))">${ICON_PLAY}</div>
-<div style="font-family:Inter;font-weight:600;font-size:46px;color:#a9bad2;margin-top:34px">Live line answering as</div>
-<div style="font-family:Montserrat;font-weight:900;font-size:74px;color:#fff;margin-top:10px;line-height:1.05">${CLIENT_FIRM}</div>
-<div style="font-family:Inter;font-weight:700;font-size:40px;color:#f9e80e;margin-top:40px;letter-spacing:1px">Your private 14-day Lead-Lock trial</div>
-</div></div></div></body></html>`;
+<div style="font-family:Montserrat;font-weight:900;font-size:42px;letter-spacing:8px;color:#f9e80e;text-transform:uppercase;margin-bottom:30px">The Offer</div>
+<div style="font-family:Montserrat;font-weight:900;font-size:122px;letter-spacing:-3px;color:#fff;line-height:1.02">14-DAY <span style="color:#f9e80e">LEAD-LOCK</span><br>TRIAL</div>
+<div style="font-family:Inter;font-weight:600;font-size:50px;color:#a9bad2;margin-top:34px">I do all the work. You take the credit and the commission.</div>
+<div style="display:flex;align-items:center;gap:18px;margin-top:48px;background:#0e1626;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:22px 40px">
+<span style="width:16px;height:16px;border-radius:50%;background:#28c840;box-shadow:0 0 18px #28c840"></span>
+<span style="font-family:Inter;font-weight:700;font-size:44px;color:#fff">intakeline.com/demo</span>
+<span style="font-family:Inter;font-weight:600;font-size:40px;color:#7d8ca6">— for ${CLIENT_FIRM}</span>
+</div></div></body></html>`;
 }
-/* ---------- 5c. voicemail: synth a phone-filtered greeting (stock voice) + splice into narration ---------- */
+function endHtml() {
+  return `${CARD_HEAD}
+<div class=grid style="background:radial-gradient(120% 90% at 50% 40%,#1b3460 0%,#0d1830 46%,#070b16 80%)"></div>
+<div style="position:absolute;inset:0;background:radial-gradient(50% 32% at 50% 46%,rgba(249,232,14,.16),rgba(249,232,14,0) 70%)"></div>
+<div class=wrap>
+<svg width="520" height="120" viewBox="0 0 600 150" style="margin-bottom:24px"><path d="M0 75 H150 L182 75 L205 26 L232 124 L258 75 L300 75 L330 40 L360 110 L388 75 H600" fill="none" stroke="#f9e80e" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/></svg>
+<div style="font-family:Montserrat;font-weight:900;font-size:150px;letter-spacing:-4px;color:#fff;line-height:1">INTAKE<span style="color:#f9e80e">LINE</span></div>
+<div style="margin-top:40px;font-family:Montserrat;font-weight:800;font-size:64px;letter-spacing:2px;color:#f9e80e;background:rgba(249,232,14,.10);border:2px solid rgba(249,232,14,.4);border-radius:16px;padding:20px 56px">intakeline.com</div>
+<div style="font-family:Inter;font-weight:600;font-size:46px;color:#a9bad2;margin-top:38px">24/7 AI intake for injury firms.</div>
+</div></body></html>`;
+}
+
+// branded nameplate shown when a prospect's site blocks the crawler — keeps the personalization beat on-brand
+function siteCardHtml(name, kicker) {
+  return `${CARD_HEAD}
+<div class=grid style="background:radial-gradient(120% 90% at 50% 38%,#16294a 0%,#0b1426 48%,#070b16 82%)"></div>
+<div class=wrap>
+<div style="font-family:Montserrat;font-weight:800;font-size:40px;letter-spacing:7px;color:#7d8ca6;text-transform:uppercase;margin-bottom:34px">${kicker}</div>
+<div style="font-family:Montserrat;font-weight:900;font-size:120px;letter-spacing:-3px;color:#fff;line-height:1.04;text-shadow:0 6px 40px rgba(0,0,0,.5)">${name}</div>
+<div style="display:flex;align-items:center;gap:16px;margin-top:48px;background:#0e1626;border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:18px 38px">
+<span style="width:14px;height:14px;border-radius:50%;background:#28c840;box-shadow:0 0 16px #28c840"></span>
+<span style="font-family:Inter;font-weight:600;font-size:42px;color:#a9bad2">live on the line</span></div>
+</div></body></html>`;
+}
+
+/* ---------- voicemail: synth a phone-filtered greeting (stock voice) + splice into narration ---------- */
 function spliceVoicemail(splitT) {
-  const VM_VOICE = "21m00Tcm4TlvDq8ikWAM"; // EL stock "Rachel" - a generic office voice, NOT the cloned voice
+  const VM_VOICE = "21m00Tcm4TlvDq8ikWAM"; // EL stock "Rachel" — a generic office voice, NOT our narrator
   const vmText = "Hi, you've reached our office. We're not available right now. Please call back tomorrow.";
   try {
     writeFileSync("vm_body.json", JSON.stringify({ text: vmText, model_id: "eleven_multilingual_v2", voice_settings: { stability: 0.6, similarity_boost: 0.7, style: 0, use_speaker_boost: false, speed: 1.05 } }));
     const raw = sh("curl", ["-sS", "-f", "-X", "POST", `https://api.elevenlabs.io/v1/text-to-speech/${VM_VOICE}?output_format=mp3_44100_128`, "-H", `xi-api-key: ${EL_KEY}`, "-H", "Content-Type: application/json", "--data", "@vm_body.json"]);
     writeFileSync("vm_raw.mp3", raw);
-    // telephone band + light compression so it sounds like a real voicemail down a phone line, capped at 3.0s
     sh("ffmpeg", ["-y", "-i", "vm_raw.mp3", "-af", "highpass=f=320,lowpass=f=3200,acompressor=threshold=-18dB:ratio=3:attack=5:release=120,volume=2.0,afade=t=in:st=0:d=0.04,afade=t=out:st=2.78:d=0.22", "-t", "3.0", "-ar", "44100", "-ac", "2", "vm.mp3"]);
     const vmDur = parseFloat(sh("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", "vm.mp3"]).toString().trim()) || 3.0;
     sh("ffmpeg", ["-y", "-i", "narration.mp3", "-i", "vm.mp3", "-filter_complex",
@@ -400,40 +376,13 @@ function spliceVoicemail(splitT) {
 }
 
 /* ---------- main ---------- */
-// BROLL_ONLY: produce clean landscape (1920x1080) scroll recordings of the agency + client sites for the Palmier edit. Headless, reusable in automation.
-if (process.env.BROLL_ONLY === "1") {
-  async function brollLandscape(url, secs, out) {
-    if (!url) return false;
-    const dir = `bl_${Math.random().toString(36).slice(2)}`; let browser;
-    try {
-      browser = await chromium.launch({ args: ["--no-sandbox"] });
-      const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1, recordVideo: { dir, size: { width: 1920, height: 1080 } }, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" });
-      const page = await ctx.newPage();
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-      await page.waitForTimeout(1700);
-      for (const re of [/accept/i, /agree/i, /got it/i, /allow all/i, /reject/i, /^ok$/i]) { try { const b = page.getByRole("button", { name: re }).first(); if (await b.isVisible({ timeout: 600 })) await b.click({ timeout: 600 }); } catch {} }
-      await page.waitForTimeout(500);
-      await page.evaluate(async (ms) => { const max = Math.max(0, document.body.scrollHeight - window.innerHeight); const t0 = performance.now(); await new Promise((res) => { function step(t){ const k=Math.min(1,(t-t0)/ms); const e=k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2; window.scrollTo(0, e*Math.min(max, 2600)); if(k<1)requestAnimationFrame(step); else res(); } requestAnimationFrame(step); }); }, Math.max(3000, secs*1000));
-      await page.waitForTimeout(300); await ctx.close(); await browser.close();
-      const webm = readdirSync(dir).find((f) => f.endsWith(".webm")); if (!webm) return false;
-      sh("ffmpeg", ["-y", "-i", `${dir}/${webm}`, "-vf", `scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS},format=yuv420p,setsar=1`, "-t", secs.toFixed(2), "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", out]);
-      rmSync(dir, { recursive: true, force: true }); return true;
-    } catch (e) { try { await browser?.close(); } catch {} console.log("broll fail", url, String(e.message).slice(0,120)); return false; }
-  }
-  console.log("BROLL agency:", await brollLandscape(AGENCY_URL, 14, "broll_agency.mp4"));
-  console.log("BROLL client:", await brollLandscape(SITE_URL, 16, "broll_client.mp4"));
-  console.log("BROLL_ONLY done");
-  process.exit(0);
-}
 let al, dur;
 if (LOCAL) {
-  // visual dry-run: fixed durations, silent track, no captions, no upload
-  for (const s of SEG) s.dur = s.type === "site" ? 5.5 : 3.2;
+  for (const s of SEG) s.dur = s.type === "site" ? 5.0 : 3.0;
   dur = SEG.reduce((a, s) => a + s.dur, 0);
   sh("ffmpeg", ["-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", dur.toFixed(2), "-q:a", "9", "narration.mp3"]);
 } else {
   al = narrate();
-  // splice the 3s phone-voicemail in at the start of s2b, then shift every later char timestamp by its duration
   const vmSeg = SEG.find((s) => s.type === "vm");
   let splitT = 0, vmDur = 0;
   if (vmSeg) {
@@ -443,8 +392,7 @@ if (LOCAL) {
     vmDur = spliceVoicemail(splitT);
     for (let i = splitChar; i < al.starts.length; i++) { al.starts[i] += vmDur; al.ends[i] += vmDur; }
   }
-  dur = (al.ends[al.ends.length - 1] || 30) + 0.5;
-  // segment start times from char alignment, made monotonic with sane fallbacks (vm beat pinned to the splice point)
+  dur = (al.ends[al.ends.length - 1] || 30) + 0.6;
   let prev = 0;
   for (let i = 0; i < SEG.length; i++) {
     let t;
@@ -454,36 +402,30 @@ if (LOCAL) {
   }
   for (let i = 0; i < SEG.length; i++) SEG[i].dur = Math.max(1.0, (i < SEG.length - 1 ? SEG[i + 1].start : dur) - SEG[i].start);
   buildAss(al, dur);
-  // NARRATE_ONLY: hand Palmier the voice-4 VO (with voicemail spliced) + per-beat cut points + word-level caption timings, then stop before the slideshow render.
-  if (process.env.NARRATE_ONLY === "1") {
-    const beats = SEG.map((s) => ({ key: s.key, type: s.type, start: +(s.start || 0).toFixed(3), dur: +(s.dur || 0).toFixed(3), text: s.text || "" }));
-    const words = []; let cur = "", ws = null, we = 0;
-    for (let i = 0; i < al.chars.length; i++) { const c = al.chars[i]; if (/\s/.test(c)) { if (cur) { words.push({ w: cur, s: +ws.toFixed(3), e: +we.toFixed(3) }); cur = ""; ws = null; } continue; } if (ws === null) ws = al.starts[i]; we = al.ends[i]; cur += c; }
-    if (cur) words.push({ w: cur, s: +ws.toFixed(3), e: +we.toFixed(3) });
-    writeFileSync("narr_meta.json", JSON.stringify({ dur: +dur.toFixed(3), beats, words }));
-    console.log("NARRATE_ONLY done: narration.mp3 (" + statSync("narration.mp3").size + "b) + narr_meta.json; beats=" + beats.length + " words=" + words.length);
-    process.exit(0);
-  }
 }
 console.log("durations:", SEG.map((s) => `${s.key}:${s.dur.toFixed(1)}`).join(" "), "total", dur.toFixed(1));
 
 await makeScrim("scrim.png");
-const XF = 0.18; // whip-cut transition length; scenes get a +XF tail so the xfade overlap keeps audio/caption sync
+const XF = 0.18; // whip-cut transition; scenes get a +XF tail so the xfade overlap keeps sync
 const scenes = [];
 for (let i = 0; i < SEG.length; i++) {
   const s = SEG[i]; const f = `scene${i}.mp4`; const sd = s.dur + XF;
   if (s.type === "site") {
     const ok = await recordSite(s.url, sd, f);
-    if (!ok) { console.log(`site ${s.key} record failed -> card fallback`); await htmlClip(logoHtml(), sd, f); }
+    if (!ok) {
+      console.log(`site ${s.key} record failed -> card fallback`);
+      const fb = s.key === "outro" ? endHtml() : s.key === "s1" ? siteCardHtml(AGENCY, "Their lead engine") : siteCardHtml(CLIENT_FIRM, "The firm I called");
+      await htmlClip(fb, sd, f);
+    }
     else console.log(`recorded ${s.key} (${s.url})`);
   } else if (s.type === "vm") { await htmlClip(voicemailHtml(), sd, f); console.log("voicemail card"); }
   else if (s.type === "logo") { await htmlClip(logoHtml(), sd, f); console.log("logo card"); }
   else if (s.type === "demo") { await htmlClip(demoHtml(), sd, f); console.log("demo card"); }
-  else { await slideClip(s.slide, sd, f); console.log(`slide ${s.key}`); }
+  else if (s.type === "end") { await htmlClip(endHtml(), sd, f); console.log("end card"); }
   scenes.push(f);
 }
 
-// assemble with whip-cut (xfade slide) transitions; fall back to hard-cut concat on any error so a render never fails
+// assemble with whip-cut (xfade slide) transitions; hard-cut concat fallback so a render never fails
 let assembled = false;
 if (scenes.length >= 2) {
   try {
@@ -514,27 +456,18 @@ if (haveCaps) {
   sh("ffmpeg", ["-y", "-i", "body.mp4", "-c", "copy", "capped.mp4"]);
 }
 sh("ffmpeg", ["-y", "-i", "capped.mp4", "-i", "narration.mp3", "-map", "0:v", "-map", "1:a",
-  // EXACT same character as ZZ Human 4 - NO EQ/coloring. Only a clean, near-transparent 320k encode of the original voice.
   "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", "-shortest", "-movflags", "+faststart", "out.mp4"]);
 const sizeMB = (statSync("out.mp4").size / 1e6).toFixed(2);
 console.log(`rendered out.mp4 (${sizeMB} MB, ${dur.toFixed(1)}s)`);
-// proof sheet: 6 evenly-spaced frames tiled, base64 to the log so the editing can be eyeballed without downloading the full mp4
+// proof sheet: 8 evenly-spaced landscape frames tiled, base64 to the log to eyeball the cut
 try {
   const d2 = parseFloat(sh("ffprobe", ["-v", "0", "-show_entries", "format=duration", "-of", "csv=p=0", "out.mp4"]).toString().trim()) || dur;
-  const rate = (5.999 / d2).toFixed(4);
-  sh("ffmpeg", ["-y", "-i", "out.mp4", "-vf", `fps=${rate},scale=170:302,tile=6x1`, "-frames:v", "1", "sheet.jpg"]);
+  const rate = (7.999 / d2).toFixed(4);
+  sh("ffmpeg", ["-y", "-i", "out.mp4", "-vf", `fps=${rate},scale=320:180,tile=4x2`, "-frames:v", "1", "sheet.jpg"]);
   console.log("SHEET_B64_START");
   console.log(readFileSync("sheet.jpg").toString("base64"));
   console.log("SHEET_B64_END");
 } catch (e) { console.log("sheet fail:", e.message); }
-// transition proof: 6 consecutive frames across the first whip-cut (agency -> client) so the slide motion can be eyeballed
-try {
-  const t0 = Math.max(0.1, (SEG[0]?.dur || 6) - 0.07);
-  sh("ffmpeg", ["-y", "-ss", t0.toFixed(2), "-i", "out.mp4", "-vf", "fps=30,scale=150:266,tile=6x1", "-frames:v", "1", "trans.jpg"]);
-  console.log("TRANS_B64_START");
-  console.log(readFileSync("trans.jpg").toString("base64"));
-  console.log("TRANS_B64_END");
-} catch (e) { console.log("trans fail:", e.message); }
 
 if (LOCAL) { console.log("LOCAL dry-run done (no captions, no upload)"); process.exit(0); }
 
