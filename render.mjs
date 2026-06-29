@@ -170,7 +170,8 @@ function buildAss(al, dur) {
   const esc = (s) => s.replace(/[{}]/g, "").replace(/\\/g, "");
   const cf = CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const goldKeys = [/world-class/i, /first ring/i, /\bdoubles?\b/i, /return on ad spend/i, /Lead Lock/i, /fifteen[ -]minute/i, /\bcommission\b/i, /\bcredit\b/i, /IntakeLine/i, /intakeline dot com/i, new RegExp(cf, "i")];
-  const redKeys = [/thirty thousand dollar/i, /walks out the door/i, /the leak/i];
+  // loose enough to survive phrase splitting (the chunker breaks "thirty thousand | dollar")
+  const redKeys = [/thirty[- ]?thousand/i, /\$?30[,.]?000/i, /walks out the door/i, /\bthe leak\b/i];
   const dialog = phrases.map((ph) => {
     const s = ph[0].s, e = ph[ph.length - 1].e + 0.06;
     let text = esc(ph.map((x) => x.w).join(" ")).replace(/\bA I\b/g, "AI").replace(/\bA M\b/g, "AM");
@@ -229,9 +230,11 @@ async function recordSite(url, secs, outMp4) {
       await ctx.close(); await browser.close(); rmSync(dir, { recursive: true, force: true }); return false;
     }
     await page.waitForTimeout(1700);
-    for (const re of [/accept/i, /agree/i, /got it/i, /allow all/i, /reject/i, /^ok$/i]) {
+    for (const re of [/accept/i, /agree/i, /got it/i, /allow all/i, /reject/i, /^ok$/i, /no thanks/i, /^close$/i, /dismiss/i]) {
       try { const b = page.getByRole("button", { name: re }).first(); if (await b.isVisible({ timeout: 600 })) await b.click({ timeout: 600 }); } catch {}
     }
+    // Escape clears most marketing/newsletter modals the button sweep misses (e.g. Scorpion's $1k-credit popup)
+    try { await page.keyboard.press("Escape"); } catch {}
     await page.waitForTimeout(500);
     await page.evaluate(async (ms) => {
       const max = Math.min(2600, Math.max(0, document.body.scrollHeight - window.innerHeight));
