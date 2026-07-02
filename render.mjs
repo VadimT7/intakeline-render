@@ -87,21 +87,21 @@ const CHECK_GOLD = '<svg width="46" height="46" viewBox="0 0 24 24" fill="none" 
 const SEG = [
   { key: "s1", type: "site", url: AGENCY_URL,
     text: TAGLINE
-      ? `Okay ${AGENCY}, real quick, I was just on your site, "${TAGLINE}", love it, and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class.`
-      : `Okay ${AGENCY}, real quick, I was just on your site and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class.` },
+      ? `Okay ${AGENCY}, real quick, I was just on your site, "${TAGLINE}", love it, and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class!`
+      : `Okay ${AGENCY}, real quick, I was just on your site and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class!` },
   { key: "s2a", type: "site", url: SITE_URL,
-    text: `But your traffic is so good I had to test where it lands, so I called ${CLIENT_FIRM} at two A.M. like a real injured lead, and listen to this.` },
+    text: `But your traffic is so good I had to test where it lands, so I called ${CLIENT_FIRM} at two A.M. like a real injured lead, and listen to this!` },
   { key: "vm", type: "vm" },
   { key: "s2b", type: "site", url: SITE_URL,
     text: `So just like that a thirty thousand dollar case walks out the door, because a message taker picked up instead of a real lawyer, and that is the leak nobody tells you about.` },
   { key: "logo", type: "logo",
-    text: `So here is what I built you, an A.I. agent that plugs that leak instantly, it answers on the first ring, books the lead, and doubles your return on ad spend, totally hands off.` },
+    text: `So here is what I built you, an A.I. agent that plugs that leak instantly, it answers on the first ring, books the lead, and doubles your return on ad spend, totally hands off!` },
   { key: "cta", type: "demo",
     text: `So here is my offer, give me fourteen days with ${CLIENT_FIRM} on a free Lead Lock trial, I do all the work, you take the credit and the commission, so honestly, are you gonna say no to a quick fifteen minute hand off?` },
   { key: "outro", type: "site", url: INTAKELINE_URL,
     text: `And here is the best part, I already did all the work, your client's new intake line is answering every single call right now, inside that link I sent you.` },
   { key: "end", type: "end",
-    text: `So give it a call, hear it for yourself, and if you love it even half as much as I do, just hit reply, and it is yours.` },
+    text: `So give it a call, hear it for yourself, and if you love it even half as much as I do, just reply, and it is yours!` },
 ];
 const SCRIPT = SEG.filter((s) => s.text).map((s) => s.text).join(" ");
 let off = 0; for (const s of SEG) { if (!s.text) continue; s.charStart = off; off += s.text.length + 1; }
@@ -113,8 +113,8 @@ function narrate() {
     console.log("NARRATION VOICE ->", EL_VOICE, "=", vn.name, "[" + vn.category + "]");
   } catch { console.log("NARRATION VOICE id:", EL_VOICE); }
   const SPEED = process.env.SPEED ? parseFloat(process.env.SPEED) : 1.16;
-  const STYLE = process.env.STYLE ? parseFloat(process.env.STYLE) : 0.62;
-  const STAB = process.env.STAB ? parseFloat(process.env.STAB) : 0.35;
+  const STYLE = process.env.STYLE ? parseFloat(process.env.STYLE) : 0.72;
+  const STAB = process.env.STAB ? parseFloat(process.env.STAB) : 0.33;
   const vs = { stability: STAB, similarity_boost: 0.8, style: STYLE, use_speaker_boost: true, speed: SPEED };
   console.log("NARRATION SETTINGS:", JSON.stringify(vs));
   const tts = (model, settings) => {
@@ -230,6 +230,7 @@ async function recordSite(url, secs, outMp4) {
     const ctx = await browser.newContext({
       viewport: { width: W, height: H }, deviceScaleFactor: 1,
       recordVideo: { dir, size: { width: W, height: H } },
+      reducedMotion: "reduce",
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
     });
     const page = await ctx.newPage();
@@ -259,7 +260,10 @@ async function recordSite(url, secs, outMp4) {
     });
     try { await page.waitForLoadState("networkidle", { timeout: 6000 }); } catch {}
     await page.evaluate(async () => { await Promise.all([...document.images].filter((i) => !i.complete).map((i) => new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 1500); }))); });
-    await page.waitForTimeout(800);
+    // force INSTANT scrolling (CSS smooth-scroll fights the rAF easing and reads as a rescroll glitch
+    // on animation-heavy sites), then hold still 2s so the tail capture can never catch the pre-warm jump
+    await page.addStyleTag({ content: `html,body,*{scroll-behavior:auto !important}` }).catch(() => {});
+    await page.waitForTimeout(2000);
     await page.evaluate(async (ms) => {
       const max = Math.min(2600, Math.max(0, document.body.scrollHeight - window.innerHeight));
       const t0 = performance.now();
@@ -428,7 +432,7 @@ function endHtml() {
 <svg width="520" height="120" viewBox="0 0 600 150" style="margin-bottom:24px;overflow:visible"><path class=draw pathLength="100" d="M0 75 H150 L182 75 L205 26 L232 124 L258 75 L300 75 L330 40 L360 110 L388 75 H600" fill="none" stroke="#f9e80e" stroke-width="9" stroke-linejoin="round" stroke-linecap="round" style="filter:drop-shadow(0 0 18px rgba(249,232,14,.5))"/></svg>
 <div class="an d2" style="font-family:Montserrat;font-weight:900;font-size:150px;letter-spacing:-4px;color:#fff;line-height:1">INTAKE<span style="color:#f9e80e">LINE</span></div>
 <div class="an d4" style="margin-top:40px;font-family:Montserrat;font-weight:800;font-size:64px;letter-spacing:2px;color:#f9e80e;background:rgba(249,232,14,.10);border:2px solid rgba(249,232,14,.4);border-radius:16px;padding:20px 56px">intakeline.com</div>
-<div class="an d5" style="font-family:Inter;font-weight:600;font-size:46px;color:#a9bad2;margin-top:36px">Hit reply. It's already built.</div>
+<div class="an d5" style="font-family:Inter;font-weight:600;font-size:46px;color:#a9bad2;margin-top:36px">Reply. It's already built.</div>
 </div></body></html>`;
 }
 // branded nameplate shown when a prospect's site blocks the crawler
