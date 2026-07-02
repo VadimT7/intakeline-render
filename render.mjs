@@ -264,19 +264,23 @@ async function recordSite(url, secs, outMp4) {
     // on animation-heavy sites), then hold still 2s so the tail capture can never catch the pre-warm jump
     await page.addStyleTag({ content: `html,body,*{scroll-behavior:auto !important}` }).catch(() => {});
     await page.waitForTimeout(2000);
-    await page.evaluate(async (ms) => {
+    // hold on the hero first (~35% of the beat, max 2.6s) so they SEE it's their site, then ease down
+    const holdMs = Math.min(2600, Math.round(secs * 350));
+    const scrollMs = Math.max(2200, Math.round(secs * 1000) - holdMs);
+    await page.evaluate(async (a) => {
+      await new Promise((r) => setTimeout(r, a.holdMs));
       const max = Math.min(2600, Math.max(0, document.body.scrollHeight - window.innerHeight));
       const t0 = performance.now();
       await new Promise((res) => {
         function step(t) {
-          const k = Math.min(1, (t - t0) / ms);
+          const k = Math.min(1, (t - t0) / a.ms);
           const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // easeInOutQuad
           window.scrollTo(0, e * max);
           if (k < 1) requestAnimationFrame(step); else res();
         }
         requestAnimationFrame(step);
       });
-    }, Math.max(2600, secs * 1000));
+    }, { ms: scrollMs, holdMs });
     await page.waitForTimeout(300);
     await ctx.close();
     await browser.close();
