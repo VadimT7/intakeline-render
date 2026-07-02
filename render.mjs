@@ -247,7 +247,7 @@ async function recordSite(url, secs, outMp4) {
     }
     try { await page.keyboard.press("Escape"); } catch {}
     // kill chat widgets, cookie bars, promo modals — including late-injected ones
-    await page.addStyleTag({ content: `[role="dialog"],[aria-modal="true"],[class*="newsletter" i],[class*="cookie" i],[class*="consent" i],[class*="gdpr" i],[id*="popup" i],[class*="popup" i],[class*="modal" i],[class*="intercom" i],[class*="drift" i],[class*="tawk" i],[class*="livechat" i],[class*="crisp" i],[id*="hubspot-messages"]{display:none !important;}` }).catch(() => {});
+    await page.addStyleTag({ content: `[role="dialog"],[aria-modal="true"],[class*="newsletter" i],[class*="cookie" i],[class*="consent" i],[class*="gdpr" i],[id*="popup" i],[class*="popup" i],[class*="modal" i],[class*="intercom" i],[class*="drift" i],[class*="tawk" i],[class*="livechat" i],[class*="crisp" i],[id*="hubspot-messages"],[class*="chat-widget" i],[id*="chat-widget" i],[class*="chatbox" i],[id*="chatbox" i],[class*="live-chat" i],[id*="live-chat" i]{display:none !important;}` }).catch(() => {});
     await page.waitForTimeout(500);
     // PRE-WARM: step to the bottom to fire lazy loads, force eager images, settle, return to top
     await page.evaluate(async () => {
