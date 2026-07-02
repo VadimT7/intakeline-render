@@ -18,6 +18,7 @@ on:
       no_vs: { description: "1 = omit voice_settings, use the voice's saved defaults", required: false, default: "0" }
       voice_id: { description: "ElevenLabs voice_id override (premade/natural voice)", required: false, default: "" }
       speed: { description: "ElevenLabs speed override e.g. 1.15 (natural voices pace slow)", required: false, default: "" }
+      audience: { description: "agency (affiliate pitch) or attorney (direct-to-firm pitch)", required: false, default: "agency" }
   repository_dispatch:
     types: [render-audit-video]
 
@@ -73,6 +74,7 @@ jobs:
           NO_VS: ${{ github.event.client_payload.no_vs || github.event.inputs.no_vs }}
           VOICE_ID: ${{ github.event.client_payload.voice_id || github.event.inputs.voice_id }}
           SPEED: ${{ github.event.client_payload.speed || github.event.inputs.speed }}
+          AUDIENCE: ${{ github.event.client_payload.audience || github.event.inputs.audience }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}

@@ -33,6 +33,12 @@ const FIRST = env("FIRST_NAME") || "there";
 const SITE_URL = env("SITE_URL");
 const AGENCY_URL = env("AGENCY_URL");
 const INTAKELINE_URL = env("INTAKELINE_URL") || "https://intakeline.com";
+// AUDIENCE switch: "agency" (affiliate pitch about their client's leak) or "attorney" (direct pitch
+// to the firm itself). Same pipeline, different script + card copy. Attorney mode NEVER claims the
+// voicemail is the firm's own recording — it's framed as a dramatization of the 2am reality.
+const AUDIENCE = (env("AUDIENCE") || "agency").toLowerCase();
+const ATT = AUDIENCE === "attorney";
+console.log("AUDIENCE:", AUDIENCE);
 const FPS = 30;
 const W = 1920, H = 1080;
 const LOCAL = env("LOCAL_TEST") === "1";
@@ -83,8 +89,29 @@ console.log("site tagline:", TAGLINE || "(none - generic hook)");
 const PHONE_RED = '<svg width="120" height="120" viewBox="0 0 24 24" fill="#ff5a6e"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>';
 const CHECK_GOLD = '<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#f9e80e" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
 
-/* ---------- 1. script broken into timed beats ---------- */
-const SEG = [
+/* ---------- 1. script broken into timed beats (per audience) ---------- */
+const SEG = ATT ? [
+  // ATTORNEY: pitch the firm itself. The voicemail beat is a DRAMATIZATION ("at most firms this is
+  // what a 2am caller hits") — never a claim that we recorded THEIR line.
+  { key: "s1", type: "site", url: AGENCY_URL,
+    text: TAGLINE
+      ? `Okay ${AGENCY}, real quick, I was just on your site, "${TAGLINE}", love it, and it is obvious you invest real money into bringing injured people to your door.`
+      : `Okay ${AGENCY}, real quick, I was just on your site, and it is obvious you invest real money into bringing injured people to your door.` },
+  { key: "s2a", type: "site", url: SITE_URL,
+    text: `But here is what nobody checks, what happens when someone finally calls, at two A.M., hurt, scared, straight from a crash, because at most firms your size, this is what they hit!` },
+  { key: "vm", type: "vm" },
+  { key: "s2b", type: "site", url: SITE_URL,
+    text: `And just like that, a thirty thousand dollar case hangs up, calls the next firm on Google, signs with them, and you never even find out it happened.` },
+  { key: "logo", type: "logo",
+    text: `So I built the fix, and I already built it for you, an A.I. receptionist that answers as ${AGENCY} on the first ring, every hour of every night, runs the full intake, and books the consult straight on your calendar!` },
+  { key: "cta", type: "demo",
+    text: `And here is my offer, it is free for seven days, zero setup on your end because I already did all of it, and if it books you one single consult, it has paid for itself many times over.` },
+  { key: "outro", type: "site", url: INTAKELINE_URL,
+    text: `Your receptionist is already live, answering as your firm, right now, inside that link I sent you, go press call and hear it introduce ${AGENCY}.` },
+  { key: "end", type: "end",
+    text: `So give it a call, hear it for yourself, and if you love it even half as much as I do, just reply, and it is yours!` },
+] : [
+  // AGENCY (affiliate): pitch the agency about their client's after-hours leak.
   { key: "s1", type: "site", url: AGENCY_URL,
     text: TAGLINE
       ? `Okay ${AGENCY}, real quick, I was just on your site, "${TAGLINE}", love it, and the lead-gen you're running for ${CLIENT_FIRM} is honestly world-class!`
@@ -97,7 +124,7 @@ const SEG = [
   { key: "logo", type: "logo",
     text: `So here is what I built you, an A.I. agent that plugs that leak instantly, it answers on the first ring, books the lead, and doubles your return on ad spend, totally hands off!` },
   { key: "cta", type: "demo",
-    text: `So here is my offer, give me fourteen days with ${CLIENT_FIRM} on a free Lead Lock trial, I do all the work, you take the credit and the commission, so honestly, are you gonna say no to a quick fifteen minute hand off?` },
+    text: `So here is my offer, give me seven days with ${CLIENT_FIRM} on a free Lead Lock trial, I do all the work, you take the credit and the commission, so honestly, are you gonna say no to a quick fifteen minute hand off?` },
   { key: "outro", type: "site", url: INTAKELINE_URL,
     text: `And here is the best part, I already did all the work, your client's new intake line is answering every single call right now, inside that link I sent you.` },
   { key: "end", type: "end",
@@ -176,8 +203,9 @@ function buildAss(al, dur) {
   }
   const esc = (s) => s.replace(/[{}]/g, "").replace(/\\/g, "");
   const cf = CLIENT_FIRM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const goldKeys = [/world-class/i, /first ring/i, /\bdoubles?\b/i, /return on ad spend/i, /Lead Lock/i, /fifteen[ -]minute/i, /\bcommission\b/i, /\bcredit\b/i, /IntakeLine/i, /intake line/i, new RegExp(cf, "i")];
-  const redKeys = [/thirty[- ]?thousand/i, /\$?30[,.]?000/i, /walks out the door/i, /\bthe leak\b/i, /two A\.?M\.?/i];
+  const ag = AGENCY.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const goldKeys = [/world-class/i, /first ring/i, /\bdoubles?\b/i, /return on ad spend/i, /Lead Lock/i, /fifteen[ -]minute/i, /\bcommission\b/i, /\bcredit\b/i, /IntakeLine/i, /intake line/i, /seven days?/i, /books the consult/i, /full intake/i, new RegExp(cf, "i"), new RegExp(ag, "i")];
+  const redKeys = [/thirty[- ]?thousand/i, /\$?30[,.]?000/i, /walks out the door/i, /\bthe leak\b/i, /two A\.?M\.?/i, /hangs up/i, /next firm on Google/i];
   const dialog = chunks.map((c, i) => {
     const s = c[0].s;
     let e = c[c.length - 1].e + 0.10;
@@ -379,7 +407,7 @@ async function htmlClip(html, secs, outMp4) {
 }
 
 function voicemailHtml() {
-  const firm = escH(CLIENT_FIRM).toUpperCase();
+  const firm = ATT ? "AFTER HOURS" : escH(CLIENT_FIRM).toUpperCase();
   const bars = [40, 86, 58, 110, 48, 96, 66, 120, 52, 84, 64, 100, 56, 92, 70, 104].map((h) => `<i style="height:${h}px"></i>`).join("");
   return `${CARD_HEAD}
 <div class=grid style="background:radial-gradient(120% 90% at 50% 42%,#3a1422 0%,#1a0a13 48%,#070b16 82%)"></div>
@@ -411,17 +439,19 @@ function logoHtml() {
 }
 function demoHtml() {
   const agency = escH(AGENCY).toUpperCase();
-  const rows = [
-    ["Free 14-day Lead-Lock trial", "d3"],
-    ["I do all the work", "d4"],
-    ["You take the credit + the commission", "d5"],
-  ].map(([t, d]) => `<div class="an ${d}" style="display:flex;align-items:center;gap:22px;background:#0e1626;border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:18px 36px">${CHECK_GOLD}<span style="font-family:Inter;font-weight:700;font-size:46px;color:#fff;white-space:nowrap">${t}</span></div>`).join("");
+  const rowData = ATT
+    ? [["Free for 7 days", "d3"], ["Already built for your firm", "d4"], ["Books consults straight to your calendar", "d5"]]
+    : [["Free 7-day Lead-Lock trial", "d3"], ["I do all the work", "d4"], ["You take the credit + the commission", "d5"]];
+  const headline = ATT
+    ? `7 DAYS <span style="color:#f9e80e">FREE</span>`
+    : `7-DAY <span style="color:#f9e80e">LEAD-LOCK</span> TRIAL`;
+  const rows = rowData.map(([t, d]) => `<div class="an ${d}" style="display:flex;align-items:center;gap:22px;background:#0e1626;border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:18px 36px">${CHECK_GOLD}<span style="font-family:Inter;font-weight:700;font-size:46px;color:#fff;white-space:nowrap">${t}</span></div>`).join("");
   return `${CARD_HEAD}
 <div class=grid style="background:radial-gradient(120% 90% at 50% 38%,#152a4d 0%,#0b1426 48%,#070b16 82%)"></div>
 <div class=glow style="position:absolute;inset:0;background:radial-gradient(46% 30% at 50% 34%,rgba(249,232,14,.10),rgba(249,232,14,0) 70%)"></div>
 <div class=wrap>
 <div class="an f d1" style="font-family:Montserrat;font-weight:900;font-size:40px;letter-spacing:8px;color:#f9e80e;text-transform:uppercase;margin-bottom:26px">THE OFFER · FOR ${agency}</div>
-<div class="an d2" style="font-family:Montserrat;font-weight:900;font-size:116px;letter-spacing:-3px;color:#fff;line-height:1.02">14-DAY <span style="color:#f9e80e">LEAD-LOCK</span> TRIAL</div>
+<div class="an d2" style="font-family:Montserrat;font-weight:900;font-size:116px;letter-spacing:-3px;color:#fff;line-height:1.02">${headline}</div>
 <div style="display:flex;flex-direction:column;gap:18px;margin-top:44px">${rows}</div>
 <div class="an d6" style="display:flex;align-items:center;gap:18px;margin-top:40px">
 <span class=dot style="width:16px;height:16px;border-radius:50%;background:#28c840;box-shadow:0 0 18px #28c840;display:inline-block"></span>
@@ -455,7 +485,10 @@ function siteCardHtml(name, kicker) {
 /* ---------- voicemail: ring-ring + personalized phone-line greeting spliced into narration ---------- */
 function spliceVoicemail(splitT) {
   const VM_VOICE = "21m00Tcm4TlvDq8ikWAM"; // EL stock "Rachel" — a generic office voice, NOT our narrator
-  const vmText = `You've reached ${CLIENT_FIRM}. We're closed right now. Please call back tomorrow.`;
+  // attorney mode: generic greeting, NO firm name — the beat is a dramatization, not a claim we recorded their line
+  const vmText = ATT
+    ? `You've reached the office. We're closed right now. Please call back tomorrow.`
+    : `You've reached ${CLIENT_FIRM}. We're closed right now. Please call back tomorrow.`;
   try {
     // classic US ringback (440+480 Hz) so the cut to voicemail FEELS like a real 2am call
     sh("ffmpeg", ["-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1.45:sample_rate=44100", "-f", "lavfi", "-i", "sine=frequency=480:duration=1.45:sample_rate=44100", "-filter_complex", "[0:a][1:a]amix=inputs=2:normalize=0,volume=0.20,highpass=f=300,lowpass=f=3400,afade=t=in:st=0:d=0.03,afade=t=out:st=1.18:d=0.25,aformat=sample_rates=44100:channel_layouts=stereo[a]", "-map", "[a]", "ring.wav"]);
