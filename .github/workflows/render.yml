@@ -42,6 +42,15 @@ jobs:
           sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
           ffmpeg -filters 2>/dev/null | grep -q ' ass ' && echo "libass OK" || (echo "libass MISSING" && exit 1)
 
+      - name: Install caption fonts (Montserrat)
+        run: |
+          mkdir -p ~/.fonts
+          for f in Montserrat-ExtraBold Montserrat-Black Montserrat-SemiBold; do
+            curl -fsSL "https://raw.githubusercontent.com/JulietaUla/Montserrat/master/fonts/ttf/${f}.ttf" -o ~/.fonts/${f}.ttf || true
+          done
+          fc-cache -f >/dev/null 2>&1 || true
+          fc-list | grep -qi montserrat && echo "Montserrat OK" || echo "Montserrat missing - DejaVu fallback"
+
       - name: Install deps + Chromium
         run: |
           npm install
