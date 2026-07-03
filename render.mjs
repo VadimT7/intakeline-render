@@ -473,7 +473,7 @@ function logoHtml() {
 function demoHtml() {
   const agency = escH(AGENCY).toUpperCase();
   const rowData = ATT
-    ? [["Free for 7 days", "d3"], ["Already built for your firm", "d4"], ["Books consults straight to your calendar", "d5"]]
+    ? [["Free for 7 days", "d3"], ["Already built for your firm", "d4"], ["Books consults straight to your calendar", "d5"], ["Books nothing month one? It's free", "d6"]]
     : [["Free 7-day Lead-Lock trial", "d3"], ["I do all the work", "d4"], ["You take the credit + the commission", "d5"]];
   const headline = ATT
     ? `7 DAYS <span style="color:#f9e80e">FREE</span>`
