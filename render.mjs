@@ -662,7 +662,7 @@ const publicUrl = `https://pub-6ca6af6a65f941a28d2bfac535c37148.r2.dev/${objectK
 console.log(`uploaded ${publicUrl}`);
 if (!SKIP_CALLBACK && N8N_INGEST_URL) {
   sh("curl", ["-sS", "-X", "POST", "-H", "Content-Type: application/json",
-    "--data", JSON.stringify({ slug: SLUG, agency: AGENCY, fileName: `${AGENCY}.mp4`, url: publicUrl }), N8N_INGEST_URL]);
+    "--data", JSON.stringify({ slug: SLUG, agency: AGENCY, fileName: `${AGENCY}.mp4`, url: publicUrl, audience: AUDIENCE, firstName: FIRST }), N8N_INGEST_URL]);
   console.log("notified n8n ingest");
 } else console.log("callback skipped");
 console.log("DONE");
