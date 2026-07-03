@@ -97,10 +97,12 @@ const SEG = ATT ? [
     text: TAGLINE
       ? `Okay ${AGENCY}, real quick, I was just on your site, "${TAGLINE}", love it, and it is obvious you invest real money into bringing injured people to your door.`
       : `Okay ${AGENCY}, real quick, I was just on your site, and it is obvious you invest real money into bringing injured people to your door.` },
-  { key: "s2a", type: "site", url: SITE_URL,
+  // s2a/s2b are motion cards (NOT the firm site again) — attorney mode feeds the same URL to every
+  // site beat, so re-scrolling it three times reads as a glitch and kills the story. Card the middle two.
+  { key: "s2a", type: "call",
     text: `But here is what nobody checks, what happens when someone finally calls, at two A.M., hurt, scared, straight from a crash, because at most firms your size, this is what they hit!` },
   { key: "vm", type: "vm" },
-  { key: "s2b", type: "site", url: SITE_URL,
+  { key: "s2b", type: "lost",
     text: `And just like that, a thirty thousand dollar case hangs up, calls the next firm on Google, signs with them, and you never even find out it happened.` },
   { key: "logo", type: "logo",
     text: `So I built the fix, and I already built it for you, an A.I. receptionist that answers as ${AGENCY} on the first ring, every hour of every night, runs the full intake, and books the consult straight on your calendar!` },
@@ -427,6 +429,37 @@ function voicemailHtml() {
 <style>.wave i{width:16px;background:linear-gradient(#ff5a6e,#ff8a97);border-radius:8px;display:inline-block;transform-origin:center}</style>
 </body></html>`;
 }
+// attorney s2a: the 2am call comes in (green = opportunity) — replaces a 2nd scroll of the firm site
+function incomingCallHtml() {
+  const greenPhone = '<svg width="112" height="112" viewBox="0 0 24 24" fill="#28c840"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>';
+  return `${CARD_HEAD}
+<div class=grid style="background:radial-gradient(120% 90% at 50% 42%,#0c2a1c 0%,#0a1a13 48%,#070b16 82%)"></div>
+<div class=glow style="position:absolute;inset:0;background:radial-gradient(44% 34% at 50% 46%,rgba(40,200,64,.13),rgba(40,200,64,0) 70%)"></div>
+<div class="an f d1" style="position:absolute;top:80px;left:96px;display:flex;align-items:center;gap:16px;background:rgba(40,200,64,.14);border:3px solid #28c840;border-radius:999px;padding:14px 30px 14px 24px;box-shadow:0 0 40px rgba(40,200,64,.30)">
+<span class=dot style="width:24px;height:24px;border-radius:50%;background:#28c840;box-shadow:0 0 24px #28c840;display:inline-block"></span>
+<span style="font-family:Montserrat;font-weight:900;font-size:40px;letter-spacing:5px;color:#fff">INCOMING</span></div>
+<div class="an f d1" style="position:absolute;top:88px;right:96px;font-family:Montserrat;font-weight:800;font-size:38px;letter-spacing:4px;color:#8affa9">2:14 AM</div>
+<div class=wrap>
+<div class="an d1" style="margin-bottom:20px"><div class=shake style="filter:drop-shadow(0 10px 34px rgba(40,200,64,.4))">${greenPhone}</div></div>
+<div class="an d2" style="font-family:Montserrat;font-weight:900;font-size:112px;letter-spacing:4px;color:#fff;line-height:1.02">A NEW CASE IS CALLING</div>
+<div class="an d3" style="font-family:Inter;font-weight:700;font-size:52px;color:#8affa9;margin-top:24px">Injured. Scared. Ready to hire — tonight.</div>
+<div class="an d5" style="font-family:Inter;font-weight:600;font-size:42px;color:#9fb0c8;margin-top:26px">The most valuable call your firm gets all week.</div>
+</div></body></html>`;
+}
+// attorney s2b: the case walks (red = loss) — replaces a 3rd scroll of the firm site
+function caseLostHtml() {
+  return `${CARD_HEAD}
+<div class=grid style="background:radial-gradient(120% 90% at 50% 42%,#3a1422 0%,#1a0a13 48%,#070b16 82%)"></div>
+<div class=glow style="position:absolute;inset:0;background:radial-gradient(46% 32% at 50% 44%,rgba(255,60,70,.15),rgba(255,60,70,0) 70%)"></div>
+<div class="an f d1" style="position:absolute;top:88px;left:96px;font-family:Montserrat;font-weight:900;font-size:38px;letter-spacing:5px;color:#ff5a6e">CASE LOST</div>
+<div class=wrap>
+<div class="an d2" style="font-family:Montserrat;font-weight:900;font-size:200px;letter-spacing:-6px;color:#fff;line-height:.95;text-shadow:0 8px 50px rgba(255,60,70,.35)">$30,000</div>
+<div class="an d3" style="font-family:Montserrat;font-weight:800;font-size:50px;letter-spacing:2px;color:#ff5a6e;margin-top:12px">GONE IN ONE UNANSWERED RING</div>
+<div class="an d4" style="display:flex;align-items:center;gap:18px;margin-top:38px;background:#180d16;border:1px solid rgba(255,90,110,.28);border-radius:16px;padding:20px 40px">
+<span style="font-family:Inter;font-weight:700;font-size:44px;color:#fff">Signed with the next firm on Google</span></div>
+<div class="an d6" style="font-family:Inter;font-weight:600;font-size:42px;color:#9fb0c8;margin-top:26px">You never even knew they called.</div>
+</div></body></html>`;
+}
 function logoHtml() {
   return `${CARD_HEAD}
 <div class=grid style="background:radial-gradient(120% 90% at 50% 38%,#1b3460 0%,#0d1830 46%,#070b16 80%)"></div>
@@ -566,7 +599,7 @@ console.log("durations:", SEG.map((s) => `${s.key}:${s.dur.toFixed(1)}`).join(" 
   let acc = 0; const cuts = [];
   for (let i = 0; i < SEG.length; i++) { if (i > 0) cuts.push(acc); acc += SEG[i].dur; }
   let acc2 = 0; const impacts = [];
-  for (const s of SEG) { if (["logo", "demo", "end"].includes(s.type)) impacts.push(acc2); acc2 += s.dur; }
+  for (const s of SEG) { if (["logo", "demo", "end", "call", "lost"].includes(s.type)) impacts.push(acc2); acc2 += s.dur; }
   mixSfx(cuts, impacts, dur);
 }
 
@@ -583,7 +616,7 @@ for (let i = 0; i < SEG.length; i++) {
       (await recordCard(fb, sd, f)) || await htmlClip(fb, sd, f);
     } else console.log(`recorded ${s.key} (${s.url})`);
   } else {
-    const html = s.type === "vm" ? voicemailHtml() : s.type === "logo" ? logoHtml() : s.type === "demo" ? demoHtml() : endHtml();
+    const html = s.type === "vm" ? voicemailHtml() : s.type === "logo" ? logoHtml() : s.type === "demo" ? demoHtml() : s.type === "call" ? incomingCallHtml() : s.type === "lost" ? caseLostHtml() : endHtml();
     (await recordCard(html, sd, f)) || await htmlClip(html, sd, f);
     console.log(`${s.type} card (animated)`);
   }
@@ -591,7 +624,7 @@ for (let i = 0; i < SEG.length; i++) {
 }
 
 // assemble: zoom-punch into cards, whip-slides between sites, fade to black into the end lock
-const transFor = (next, i) => ["vm", "logo", "demo"].includes(next.type) ? "zoomin" : next.type === "end" ? "fadeblack" : (i % 2 === 1 ? "slideleft" : "slideright");
+const transFor = (next, i) => ["vm", "logo", "demo", "call", "lost"].includes(next.type) ? "zoomin" : next.type === "end" ? "fadeblack" : (i % 2 === 1 ? "slideleft" : "slideright");
 let assembled = false;
 if (scenes.length >= 2) {
   try {
