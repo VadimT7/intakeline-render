@@ -94,9 +94,7 @@ const SEG = ATT ? [
   // ATTORNEY: pitch the firm itself. The voicemail beat is a DRAMATIZATION ("at most firms this is
   // what a 2am caller hits") — never a claim that we recorded THEIR line.
   { key: "s1", type: "site", url: AGENCY_URL,
-    text: TAGLINE
-      ? `Okay ${AGENCY}, real quick, I was just on your site, "${TAGLINE}", love it, and it is obvious you invest real money into bringing injured people to your door.`
-      : `Okay ${AGENCY}, real quick, I was just on your site, and it is obvious you invest real money into bringing injured people to your door.` },
+    text: `Okay ${AGENCY}, real quick, I was just on your site, and it is obvious you invest real money into bringing injured people to your door.` },
   // s2a/s2b are motion cards (NOT the firm site again) — attorney mode feeds the same URL to every
   // site beat, so re-scrolling it three times reads as a glitch and kills the story. Card the middle two.
   { key: "s2a", type: "call",
